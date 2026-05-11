@@ -1378,6 +1378,19 @@ function isReceiptBeingScanned(transaction: OnyxInputOrEntry<Transaction>): bool
 }
 
 /**
+ * Comparator that pins scanning transactions above non-scanning ones regardless of the active sort column or direction.
+ * Returns 0 when both rows have the same scanning state, so callers can chain the existing column comparator after it.
+ */
+function compareScanningPriority(a: OnyxEntry<Transaction>, b: OnyxEntry<Transaction>): number {
+    const aScanning = isScanning(a);
+    const bScanning = isScanning(b);
+    if (aScanning === bScanning) {
+        return 0;
+    }
+    return aScanning ? -1 : 1;
+}
+
+/**
  * Check if category is being analyzed (manual request creation or auto-categorization grace period)
  */
 function isCategoryBeingAnalyzed(transaction: OnyxEntry<Transaction>): boolean {
@@ -2955,6 +2968,7 @@ export {
     isPartialTransaction,
     isScanningTransaction,
     isScanning,
+    compareScanningPriority,
     isCategoryBeingAnalyzed,
     getOriginalTransactionWithSplitInfo,
     shouldRedirectDeleteToSplitExpenseEdit,

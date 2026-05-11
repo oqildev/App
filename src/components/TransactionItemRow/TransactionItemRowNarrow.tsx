@@ -65,6 +65,7 @@ function TransactionItemRowNarrow({
     transactionThreadReportID,
     categoryForDisplay,
     createdAt,
+    createdAtDisplayText,
     shouldRenderChatBubbleCell,
 }: TransactionItemRowNarrowProps) {
     const styles = useThemeStyles();
@@ -129,6 +130,7 @@ function TransactionItemRowNarrow({
                                 showTooltip={shouldShowTooltip}
                                 isLargeScreenWidth={false}
                                 suffixText={categoryForDisplay}
+                                displayText={createdAtDisplayText}
                             />
                             <TypeCell
                                 transactionItem={transactionItem}

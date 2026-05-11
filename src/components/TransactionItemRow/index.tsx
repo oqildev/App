@@ -95,6 +95,7 @@ function TransactionItemRow({
     const styles = useThemeStyles();
     const {translate} = useLocalize();
     const createdAt = getTransactionCreated(transactionItem);
+    const createdAtDisplayText = isScanning(transactionItem) ? translate('iou.receiptStatusTitle') : undefined;
     const transactionThreadReportID = reportActions ? getIOUActionForTransactionID(reportActions, transactionItem.transactionID)?.childReportID : undefined;
     const transactionAttendees = useAttendees(transactionItem);
 
@@ -162,6 +163,7 @@ function TransactionItemRow({
                 missingFieldError={missingFieldError}
                 categoryForDisplay={categoryForDisplay}
                 createdAt={createdAt}
+                createdAtDisplayText={createdAtDisplayText}
                 transactionThreadReportID={transactionThreadReportID}
                 shouldRenderChatBubbleCell={shouldRenderChatBubbleCell}
             />
@@ -239,6 +241,7 @@ function TransactionItemRow({
             shouldShowAttendees={shouldShowAttendees}
             totalPerAttendee={!attendeesCount || totalAmount === undefined ? undefined : totalAmount / attendeesCount}
             createdAt={createdAt}
+            createdAtDisplayText={createdAtDisplayText}
             transactionThreadReportID={transactionThreadReportID}
         />
     );

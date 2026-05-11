@@ -118,6 +118,7 @@ type TransactionItemRowNarrowComputedData = {
     missingFieldError: string;
     categoryForDisplay: string;
     createdAt: string;
+    createdAtDisplayText: string | undefined;
     transactionThreadReportID: string | undefined;
     shouldRenderChatBubbleCell: boolean;
 };

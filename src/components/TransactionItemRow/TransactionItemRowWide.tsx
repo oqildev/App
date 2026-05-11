@@ -109,6 +109,7 @@ function TransactionItemRowWide({
     totalPerAttendee,
     transactionThreadReportID,
     createdAt,
+    createdAtDisplayText,
 }: TransactionItemRowWideProps) {
     const styles = useThemeStyles();
     const {translate} = useLocalize();
@@ -184,6 +185,7 @@ function TransactionItemRowWide({
                             onSave={onEditDate}
                             showTooltip={shouldShowTooltip}
                             isLargeScreenWidth
+                            displayText={createdAtDisplayText}
                         />
                     </View>
                 );

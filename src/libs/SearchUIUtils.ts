@@ -3739,9 +3739,20 @@ function getSortedTransactionData(
     translate: LocaleContextProps['translate'],
     sortBy?: SearchColumnType,
     sortOrder?: SortOrder,
-) {
+): TransactionListItemType[] {
     if (!sortBy || !sortOrder) {
         return data;
+    }
+
+    // Pin scanning receipts to the top of the list independent of the active sort column or direction.
+    // Each partition is recursively sorted by the existing branches below, so all column behavior is preserved within both groups.
+    const scanningTransactions = data.filter((transaction) => isScanning(transaction));
+    if (scanningTransactions.length > 0 && scanningTransactions.length < data.length) {
+        const nonScanningTransactions = data.filter((transaction) => !isScanning(transaction));
+        return [
+            ...getSortedTransactionData(scanningTransactions, localeCompare, translate, sortBy, sortOrder),
+            ...getSortedTransactionData(nonScanningTransactions, localeCompare, translate, sortBy, sortOrder),
+        ];
     }
 
     if (sortBy === CONST.SEARCH.TABLE_COLUMNS.REPORT_ID || sortBy === CONST.SEARCH.TABLE_COLUMNS.BASE_62_REPORT_ID) {

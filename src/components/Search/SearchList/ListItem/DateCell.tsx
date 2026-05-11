@@ -13,9 +13,12 @@ type DateCellProps = {
     showTooltip: boolean;
     isLargeScreenWidth: boolean;
     suffixText?: string;
+
+    /** Optional override that replaces the formatted date entirely (e.g. "Scanning…" for in-progress scans). */
+    displayText?: string;
 } & EditableProps<string>;
 
-function DateCell({date, showTooltip, isLargeScreenWidth, suffixText, canEdit, onSave}: DateCellProps) {
+function DateCell({date, showTooltip, isLargeScreenWidth, suffixText, displayText, canEdit, onSave}: DateCellProps) {
     const styles = useThemeStyles();
     const {isInNarrowPaneModal} = useResponsiveLayout();
     const {isEditing, anchorRef, isPopoverVisible, popoverPosition, isInverted, startEditing, cancelEditing, handleSave} = usePopoverEditState({
@@ -25,11 +28,11 @@ function DateCell({date, showTooltip, isLargeScreenWidth, suffixText, canEdit, o
     });
 
     const formattedDate = DateUtils.formatWithUTCTimeZone(date, DateUtils.doesDateBelongToAPastYear(date) ? CONST.DATE.MONTH_DAY_YEAR_ABBR_FORMAT : CONST.DATE.MONTH_DAY_ABBR_FORMAT);
-    const displayText = suffixText ? `${formattedDate} • ${suffixText}` : formattedDate;
+    const text = displayText ?? (suffixText ? `${formattedDate} • ${suffixText}` : formattedDate);
 
     const displayContent = (
         <TextWithTooltip
-            text={displayText}
+            text={text}
             shouldShowTooltip={showTooltip}
             style={[styles.lineHeightLarge, styles.pre, styles.justifyContentCenter, isLargeScreenWidth ? undefined : styles.mutedNormalTextLabel, !!suffixText && styles.flexShrink1]}
         />
