@@ -54,7 +54,9 @@ function RuleSelectionBase({titleKey, title, testID, selectedItem, items, onSave
 
     const handleSave = (value?: string) => {
         if (!value || value === CONST.SEARCH.TAG_EMPTY_VALUE) {
-            onSave(undefined);
+            // Pass an empty string instead of undefined so Onyx.merge clears the field
+            // (merging undefined is treated as a no-op for that key).
+            onSave('');
             return;
         }
         onSave(value);
