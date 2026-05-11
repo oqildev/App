@@ -1,10 +1,11 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 import {View} from 'react-native';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
 import ScreenWrapper from '@components/ScreenWrapper';
 import SearchSingleSelectionPicker from '@components/Search/SearchSingleSelectionPicker';
 import useLocalize from '@hooks/useLocalize';
 import useThemeStyles from '@hooks/useThemeStyles';
+import CONST from '@src/CONST';
 import type {TranslationPaths} from '@src/languages/types';
 import type {Route} from '@src/ROUTES';
 import RuleNotFoundPageWrapper from './RuleNotFoundPageWrapper';
@@ -47,6 +48,18 @@ function RuleSelectionBase({titleKey, title, testID, selectedItem, items, onSave
     const styles = useThemeStyles();
     const {translate} = useLocalize();
 
+    const noneItem = useMemo<SelectionItem>(() => ({name: translate('common.none'), value: CONST.SEARCH.TAG_EMPTY_VALUE}), [translate]);
+    const itemsWithNone = useMemo(() => [noneItem, ...items], [noneItem, items]);
+    const effectiveSelectedItem = selectedItem ?? noneItem;
+
+    const handleSave = (value?: string) => {
+        if (!value || value === CONST.SEARCH.TAG_EMPTY_VALUE) {
+            onSave(undefined);
+            return;
+        }
+        onSave(value);
+    };
+
     return (
         <RuleNotFoundPageWrapper hash={hash}>
             <ScreenWrapper
@@ -61,9 +74,9 @@ function RuleSelectionBase({titleKey, title, testID, selectedItem, items, onSave
                 <View style={[styles.flex1]}>
                     <SearchSingleSelectionPicker
                         backToRoute={backToRoute}
-                        initiallySelectedItem={selectedItem}
-                        items={items}
-                        onSaveSelection={onSave}
+                        initiallySelectedItem={effectiveSelectedItem}
+                        items={itemsWithNone}
+                        onSaveSelection={handleSave}
                         shouldAutoSave
                     />
                 </View>

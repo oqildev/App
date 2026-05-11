@@ -6,6 +6,7 @@ import useLocalize from '@hooks/useLocalize';
 import Navigation from '@libs/Navigation/Navigation';
 import type {OptionData} from '@libs/ReportUtils';
 import {sortOptionsWithEmptyValue} from '@libs/SearchQueryUtils';
+import CONST from '@src/CONST';
 import ROUTES from '@src/ROUTES';
 import type {Route} from '@src/ROUTES';
 import SearchFilterPageFooterButtons from './SearchFilterPageFooterButtons';
@@ -56,7 +57,15 @@ function SearchSingleSelectionPicker({
 
     const remainingItemsSection = items
         .filter((item) => item.value !== initiallySelectedItem?.value && item.name.toLowerCase().includes(debouncedSearchTerm?.toLowerCase()))
-        .sort((a, b) => sortOptionsWithEmptyValue(a.name.toString(), b.name.toString(), localeCompare))
+        .sort((a, b) => {
+            if (a.value === CONST.SEARCH.TAG_EMPTY_VALUE || a.value === CONST.SEARCH.CATEGORY_EMPTY_VALUE) {
+                return -1;
+            }
+            if (b.value === CONST.SEARCH.TAG_EMPTY_VALUE || b.value === CONST.SEARCH.CATEGORY_EMPTY_VALUE) {
+                return 1;
+            }
+            return sortOptionsWithEmptyValue(a.name.toString(), b.name.toString(), localeCompare);
+        })
         .map((item) => ({
             text: item.name,
             keyForList: item.value,
