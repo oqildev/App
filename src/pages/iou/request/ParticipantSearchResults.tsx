@@ -1,5 +1,5 @@
 import lodashPick from 'lodash/pick';
-import React, {useEffect} from 'react';
+import React, {useEffect, useMemo} from 'react';
 import type {Ref} from 'react';
 import type {GestureResponderEvent} from 'react-native';
 import {InteractionManager} from 'react-native';
@@ -258,96 +258,127 @@ function ParticipantSearchResults({
         !(contactPermissionState === RESULTS.GRANTED || contactPermissionState === RESULTS.LIMITED) &&
         inputHelperText === translate('common.noResultsFound');
 
-    /**
-     * Returns the sections needed for the OptionsSelector
-     * @returns {Array}
-     */
-    const sections: Array<Section<OptionWithKey>> = [];
-    let header = '';
-    if (areOptionsInitialized && didScreenTransitionEnd) {
-        const formatResults = formatSectionsFromSearchTerm(
-            searchTerm,
-            participants.map((participant) => ({...participant, reportID: participant.reportID})) as OptionData[],
-            [],
-            [],
-            privateIsArchivedMap,
-            currentUserAccountID,
-            allPolicies,
-            personalDetails,
-            true,
-            undefined,
-            reportAttributesDerived,
-        );
-        sections.push({...formatResults.section, sectionIndex: 0});
+    const {sections, header} = useMemo(() => {
+        const result: Array<Section<OptionWithKey>> = [];
+        let sectionHeader = '';
 
-        if ((availableOptions.workspaceChats ?? []).length > 0) {
-            sections.push({
-                title: translate('workspace.common.workspace'),
-                data: availableOptions.workspaceChats ?? [],
-                sectionIndex: 1,
-            });
-        }
+        if (areOptionsInitialized && didScreenTransitionEnd) {
+            const formatResults = formatSectionsFromSearchTerm(
+                searchTerm,
+                participants.map((participant) => ({...participant, reportID: participant.reportID})) as OptionData[],
+                [],
+                [],
+                privateIsArchivedMap,
+                currentUserAccountID,
+                allPolicies,
+                personalDetails,
+                true,
+                undefined,
+                reportAttributesDerived,
+            );
+            result.push({...formatResults.section, sectionIndex: 0});
 
-        if (availableOptions.selfDMChat) {
-            sections.push({
-                title: translate('workspace.invoices.paymentMethods.personal'),
-                data: availableOptions.selfDMChat ? [availableOptions.selfDMChat] : [],
-                sectionIndex: 2,
-            });
-        }
-
-        if (!isWorkspacesOnly) {
-            const shouldFilterRecentReportsToWorkspaceOnly = isPerDiemRequest || isTimeRequest;
-            const recentReports = shouldFilterRecentReportsToWorkspaceOnly ? availableOptions.recentReports.filter((report) => report.isPolicyExpenseChat) : availableOptions.recentReports;
-            if (recentReports.length > 0) {
-                sections.push({
-                    title: translate('common.recents'),
-                    data: recentReports,
-                    sectionIndex: 3,
+            if ((availableOptions.workspaceChats ?? []).length > 0) {
+                result.push({
+                    title: translate('workspace.common.workspace'),
+                    data: availableOptions.workspaceChats ?? [],
+                    sectionIndex: 1,
                 });
             }
 
-            if (availableOptions.personalDetails.length > 0 && !isPerDiemRequest && !isTimeRequest) {
-                sections.push({
-                    title: translate('common.contacts'),
-                    data: availableOptions.personalDetails,
-                    sectionIndex: 4,
+            if (availableOptions.selfDMChat) {
+                result.push({
+                    title: translate('workspace.invoices.paymentMethods.personal'),
+                    data: availableOptions.selfDMChat ? [availableOptions.selfDMChat] : [],
+                    sectionIndex: 2,
                 });
+            }
+
+            if (!isWorkspacesOnly) {
+                const shouldFilterRecentReportsToWorkspaceOnly = isPerDiemRequest || isTimeRequest;
+                const recentReports = shouldFilterRecentReportsToWorkspaceOnly
+                    ? availableOptions.recentReports.filter((report) => report.isPolicyExpenseChat)
+                    : availableOptions.recentReports;
+                if (recentReports.length > 0) {
+                    result.push({
+                        title: translate('common.recents'),
+                        data: recentReports,
+                        sectionIndex: 3,
+                    });
+                }
+
+                if (availableOptions.personalDetails.length > 0 && !isPerDiemRequest && !isTimeRequest) {
+                    result.push({
+                        title: translate('common.contacts'),
+                        data: availableOptions.personalDetails,
+                        sectionIndex: 4,
+                    });
+                }
+            }
+
+            if (
+                !isWorkspacesOnly &&
+                availableOptions.userToInvite &&
+                !isCurrentUser(
+                    {
+                        ...availableOptions.userToInvite,
+                        accountID: availableOptions.userToInvite?.accountID ?? CONST.DEFAULT_NUMBER_ID,
+                        status: availableOptions.userToInvite?.status ?? undefined,
+                    },
+                    loginList,
+                    currentUserEmail,
+                ) &&
+                !isPerDiemRequest &&
+                !isTimeRequest
+            ) {
+                result.push({
+                    title: undefined,
+                    data: [availableOptions.userToInvite].map((participant) => {
+                        const isPolicyExpenseChat = participant?.isPolicyExpenseChat ?? false;
+                        const privateIsArchived = privateIsArchivedMap[`${ONYXKEYS.COLLECTION.REPORT_NAME_VALUE_PAIRS}${userToInviteExpenseReport?.reportID}`];
+                        return isPolicyExpenseChat
+                            ? getPolicyExpenseReportOption(
+                                  participant,
+                                  privateIsArchived,
+                                  personalDetails,
+                                  userToInviteExpenseReport,
+                                  userToInviteExpenseReportPolicy,
+                                  reportAttributesDerived,
+                              )
+                            : getParticipantsOption(participant, personalDetails);
+                    }),
+                    sectionIndex: 5,
+                });
+            }
+
+            if (!showImportContacts) {
+                sectionHeader = inputHelperText ?? '';
             }
         }
 
-        if (
-            !isWorkspacesOnly &&
-            availableOptions.userToInvite &&
-            !isCurrentUser(
-                {
-                    ...availableOptions.userToInvite,
-                    accountID: availableOptions.userToInvite?.accountID ?? CONST.DEFAULT_NUMBER_ID,
-                    status: availableOptions.userToInvite?.status ?? undefined,
-                },
-                loginList,
-                currentUserEmail,
-            ) &&
-            !isPerDiemRequest &&
-            !isTimeRequest
-        ) {
-            sections.push({
-                title: undefined,
-                data: [availableOptions.userToInvite].map((participant) => {
-                    const isPolicyExpenseChat = participant?.isPolicyExpenseChat ?? false;
-                    const privateIsArchived = privateIsArchivedMap[`${ONYXKEYS.COLLECTION.REPORT_NAME_VALUE_PAIRS}${userToInviteExpenseReport?.reportID}`];
-                    return isPolicyExpenseChat
-                        ? getPolicyExpenseReportOption(participant, privateIsArchived, personalDetails, userToInviteExpenseReport, userToInviteExpenseReportPolicy, reportAttributesDerived)
-                        : getParticipantsOption(participant, personalDetails);
-                }),
-                sectionIndex: 5,
-            });
-        }
-
-        if (!showImportContacts) {
-            header = inputHelperText ?? '';
-        }
-    }
+        return {sections: result, header: sectionHeader};
+    }, [
+        areOptionsInitialized,
+        didScreenTransitionEnd,
+        searchTerm,
+        participants,
+        privateIsArchivedMap,
+        currentUserAccountID,
+        allPolicies,
+        personalDetails,
+        reportAttributesDerived,
+        availableOptions,
+        translate,
+        isWorkspacesOnly,
+        isPerDiemRequest,
+        isTimeRequest,
+        loginList,
+        currentUserEmail,
+        userToInviteExpenseReport,
+        userToInviteExpenseReportPolicy,
+        showImportContacts,
+        inputHelperText,
+    ]);
 
     /**
      * Removes a selected option from list if already selected. If not already selected add this option to the list.

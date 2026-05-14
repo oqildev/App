@@ -1,7 +1,7 @@
 import {useIsFocused} from '@react-navigation/native';
 import {FlashList} from '@shopify/flash-list';
 import type {FlashListRef, ListRenderItemInfo} from '@shopify/flash-list';
-import React, {useImperativeHandle, useRef} from 'react';
+import React, {useCallback, useImperativeHandle, useRef} from 'react';
 import type {TextInputKeyPressEvent} from 'react-native';
 import {View} from 'react-native';
 import type {ValueOf} from 'type-fest';
@@ -104,23 +104,26 @@ function BaseSelectionListWithSections<TItem extends ListItem>({
         hasKeyBeenPressed.current = true;
     };
 
-    const scrollToIndex = (index: number) => {
-        if (index < 0 || index >= flattenedData.length || !listRef.current) {
-            return;
-        }
-        const item = flattenedData.at(index);
-        if (!item) {
-            return;
-        }
-        try {
-            listRef.current.scrollToIndex({index});
-        } catch (error) {
-            // FlashList may throw if layout for this index doesn't exist yet
-            // This can happen when data changes rapidly (e.g., during search filtering)
-            // The layout will be computed on next render, so we can safely ignore this
-            Log.warn('SelectionListWithSections: error scrolling to index', {error});
-        }
-    };
+    const scrollToIndex = useCallback(
+        (index: number) => {
+            if (index < 0 || index >= flattenedData.length || !listRef.current) {
+                return;
+            }
+            const item = flattenedData.at(index);
+            if (!item) {
+                return;
+            }
+            try {
+                listRef.current.scrollToIndex({index});
+            } catch (error) {
+                // FlashList may throw if layout for this index doesn't exist yet
+                // This can happen when data changes rapidly (e.g., during search filtering)
+                // The layout will be computed on next render, so we can safely ignore this
+                Log.warn('SelectionListWithSections: error scrolling to index', {error});
+            }
+        },
+        [flattenedData],
+    );
 
     const debouncedScrollToIndex = useDebounce(scrollToIndex, CONST.TIMING.LIST_SCROLLING_DEBOUNCE_TIME, {leading: true, trailing: true});
 
