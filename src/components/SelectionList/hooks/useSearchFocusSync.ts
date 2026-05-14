@@ -24,6 +24,9 @@ type UseSearchFocusSyncParams<TItem extends ListItem, TData = TItem> = {
     /** Function to scroll to an index */
     scrollToIndex: (index: number) => void;
 
+    /** The currently focused index */
+    focusedIndex: number;
+
     /** Function to set the focused index */
     setFocusedIndex: (index: number) => void;
 
@@ -46,6 +49,7 @@ function useSearchFocusSync<TItem extends ListItem, TData = TItem>({
     canSelectMultiple,
     shouldUpdateFocusedIndex,
     scrollToIndex,
+    focusedIndex,
     setFocusedIndex,
     firstFocusableIndex = 0,
 }: UseSearchFocusSyncParams<TItem, TData>) {
@@ -85,21 +89,27 @@ function useSearchFocusSync<TItem extends ListItem, TData = TItem>({
         const shouldResetFocus = isSearchIdle || (selectedOptionsChanged && prevItemsLength === data.length);
 
         if (shouldResetFocus) {
-            setFocusedIndex(-1);
+            if (focusedIndex !== -1) {
+                setFocusedIndex(-1);
+            }
             return;
         }
 
         // Scroll to top of list and focus on first focusable item (not header)
         scrollToIndex(0);
-        setFocusedIndex(firstFocusableIndex);
+        if (focusedIndex !== firstFocusableIndex) {
+            setFocusedIndex(firstFocusableIndex);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         canSelectMultiple,
-        data,
+        data.length,
         selectedOptionsCount,
         prevItemsLength,
         prevSelectedOptionsCount,
         prevSearchValue,
         scrollToIndex,
+        focusedIndex,
         setFocusedIndex,
         shouldUpdateFocusedIndex,
         searchValue,

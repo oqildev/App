@@ -507,6 +507,7 @@ function BaseSelectionList<TItem extends ListItem>({
         canSelectMultiple,
         shouldUpdateFocusedIndex,
         scrollToIndex,
+        focusedIndex,
         setFocusedIndex,
     });
 
