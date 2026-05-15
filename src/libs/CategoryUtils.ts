@@ -136,6 +136,19 @@ function isCategoryMissing(category: string | undefined): boolean {
     return category === CONST.SEARCH.CATEGORY_EMPTY_VALUE || category === CONST.SEARCH.CATEGORY_DEFAULT_VALUE;
 }
 
+/**
+ * The strings "Uncategorized" and "none" are reserved sentinels meaning "no category" in Search aggregations and
+ * isCategoryMissing(). Allowing a user-created policy category with one of these names would silently blank the
+ * transaction row in every display path that calls isCategoryMissing().
+ */
+function isReservedCategoryName(category: string | undefined): boolean {
+    if (!category) {
+        return false;
+    }
+
+    return category === CONST.SEARCH.CATEGORY_EMPTY_VALUE || category === CONST.SEARCH.CATEGORY_DEFAULT_VALUE;
+}
+
 function isCategoryDescriptionRequired(policyCategories: PolicyCategories | undefined, category: string | undefined, areRulesEnabled: boolean | undefined): boolean {
     if (!policyCategories || !category || !areRulesEnabled) {
         return false;
@@ -169,6 +182,7 @@ export {
     updateCategoryInMccGroup,
     getEnabledCategoriesCount,
     isCategoryMissing,
+    isReservedCategoryName,
     isCategoryDescriptionRequired,
     getDecodedCategoryName,
     getAvailableNonPersonalPolicyCategories,

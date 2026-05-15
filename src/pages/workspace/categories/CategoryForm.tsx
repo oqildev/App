@@ -8,7 +8,7 @@ import TextInput from '@components/TextInput';
 import useAutoFocusInput from '@hooks/useAutoFocusInput';
 import useLocalize from '@hooks/useLocalize';
 import useThemeStyles from '@hooks/useThemeStyles';
-import {getDecodedCategoryName} from '@libs/CategoryUtils';
+import {getDecodedCategoryName, isReservedCategoryName} from '@libs/CategoryUtils';
 import {addErrorMessage} from '@libs/ErrorUtils';
 import {isRequiredFulfilled} from '@libs/ValidationUtils';
 import CONST from '@src/CONST';
@@ -49,7 +49,7 @@ function CategoryForm({onSubmit, policyCategories, categoryName, validateEdit, a
                 errors.categoryName = translate('workspace.categories.categoryRequiredError');
             } else if (policyCategories?.[newCategoryName]) {
                 errors.categoryName = translate('workspace.categories.existingCategoryError');
-            } else if (newCategoryName === CONST.INVALID_CATEGORY_NAME) {
+            } else if (newCategoryName === CONST.INVALID_CATEGORY_NAME || isReservedCategoryName(newCategoryName)) {
                 errors.categoryName = translate('workspace.categories.invalidCategoryName');
             } else if ([...newCategoryName].length > CONST.API_TRANSACTION_CATEGORY_MAX_LENGTH) {
                 // Uses the spread syntax to count the number of Unicode code points instead of the number of UTF-16 code units.
