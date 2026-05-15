@@ -6143,6 +6143,11 @@ function deleteAppReport({
 
     const chatReport = getReportOrDraftReport(report?.parentReportID);
     if (chatReport) {
+        // Clear the parent chat's pointer to the deleted report; the new-expense flow reuses chatReport.iouReportID as the target for new transactions.
+        const optimisticReportActions = reportActionID ? {[reportActionID]: null} : {};
+        const lastMessageText = ReportActionsUtils.getLastVisibleMessage(report?.parentReportID, undefined, optimisticReportActions).lastMessageText ?? '';
+        const lastVisibleAction = ReportActionsUtils.getLastVisibleAction(report?.parentReportID, undefined, optimisticReportActions);
+
         optimisticData.push({
             onyxMethod: Onyx.METHOD.MERGE,
             key: `${ONYXKEYS.COLLECTION.REPORT}${report?.parentReportID}`,
@@ -6155,15 +6160,23 @@ function deleteAppReport({
                     allTransactionViolations,
                     bankAccountList,
                 ),
+                iouReportID: null,
+                lastMessageText,
+                lastVisibleActionCreated: lastVisibleAction?.created ?? '',
+            },
+        });
+
+        failureData.push({
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: `${ONYXKEYS.COLLECTION.REPORT}${report?.parentReportID}`,
+            value: {
+                hasOutstandingChildRequest: chatReport.hasOutstandingChildRequest,
+                iouReportID: chatReport.iouReportID,
+                lastMessageText: chatReport.lastMessageText,
+                lastVisibleActionCreated: chatReport.lastVisibleActionCreated,
             },
         });
     }
-
-    failureData.push({
-        onyxMethod: Onyx.METHOD.MERGE,
-        key: `${ONYXKEYS.COLLECTION.REPORT}${report?.parentReportID}`,
-        value: {hasOutstandingChildRequest: report?.hasOutstandingChildRequest},
-    });
 
     if (hash) {
         failureData.push({
