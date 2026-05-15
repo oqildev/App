@@ -7801,6 +7801,7 @@ const translations = {
         },
         exportedTo: 'Exported to',
         exportAll: {
+            selectAllOnThisPage: 'Select all on this page',
             selectAllMatchingItems: 'Select all matching items',
             allMatchingItemsSelected: 'All matching items selected',
         },

@@ -8,16 +8,13 @@ import {View} from 'react-native';
 // eslint-disable-next-line no-restricted-imports
 import type {NativeScrollEvent, NativeSyntheticEvent, ScrollView as RNScrollView, StyleProp, ViewStyle} from 'react-native';
 import Animated, {Easing, FadeOutUp, LinearTransition} from 'react-native-reanimated';
-import Checkbox from '@components/Checkbox';
 import MenuItem from '@components/MenuItem';
 import Modal from '@components/Modal';
 import {usePersonalDetails} from '@components/OnyxListItemProvider';
-import {PressableWithFeedback} from '@components/Pressable';
 import {ScrollOffsetContext} from '@components/ScrollOffsetContextProvider';
 import ScrollView from '@components/ScrollView';
 import type {SearchColumnType, SearchGroupBy, SearchQueryJSON, SelectedTransactions} from '@components/Search/types';
 import type {ExtendedTargetedEvent} from '@components/SelectionList/ListItem/types';
-import Text from '@components/Text';
 import useKeyboardState from '@hooks/useKeyboardState';
 import {useMemoizedLazyExpensifyIcons} from '@hooks/useLazyAsset';
 import useLocalize from '@hooks/useLocalize';
@@ -57,6 +54,7 @@ import type {
     TransactionWeekGroupListItemType,
     TransactionYearGroupListItemType,
 } from './ListItem/types';
+import SearchSelectAllMenu from './SearchSelectAllMenu';
 
 const easing = Easing.bezier(0.76, 0.0, 0.24, 1.0);
 
@@ -512,7 +510,7 @@ function SearchList({
 
     const tableHeaderVisible = canSelectMultiple || !!SearchTableHeader;
     const selectAllButtonVisible = canSelectMultiple && !SearchTableHeader;
-    const isSelectAllChecked = selectedItemsLength > 0 && selectedItemsLength === totalItems && hasLoadedAllTransactions;
+    const isSelectAllChecked = !!(selectedItemsLength > 0 && selectedItemsLength === totalItems && hasLoadedAllTransactions);
 
     const content = (
         <View style={[styles.flex1, !isKeyboardShown && safeAreaPaddingBottomStyle, containerStyle]}>
@@ -524,34 +522,17 @@ function SearchList({
                     ]}
                 >
                     {canSelectMultiple && (
-                        <Checkbox
-                            accessibilityLabel={translate('accessibilityHints.selectAllItems')}
-                            isChecked={isSelectAllChecked}
+                        <SearchSelectAllMenu
+                            isSelectAllChecked={isSelectAllChecked}
                             isIndeterminate={selectedItemsLength > 0 && (selectedItemsLength !== totalItems || !hasLoadedAllTransactions)}
-                            onPress={() => {
-                                onAllCheckboxPress();
-                            }}
-                            disabled={totalItems === 0}
-                            containerStyle={styles.m0}
-                            sentryLabel={CONST.SENTRY_LABEL.SEARCH.SELECT_ALL_CHECKBOX}
+                            selectedItemsLength={selectedItemsLength}
+                            totalItems={totalItems}
+                            shouldShowTextButton={selectAllButtonVisible}
+                            onAllCheckboxPress={onAllCheckboxPress}
                         />
                     )}
 
                     {SearchTableHeader}
-
-                    {selectAllButtonVisible && (
-                        <PressableWithFeedback
-                            style={[styles.userSelectNone, styles.alignItemsCenter]}
-                            onPress={onAllCheckboxPress}
-                            accessibilityLabel={translate('accessibilityHints.selectAllItems')}
-                            role="button"
-                            accessibilityState={{checked: isSelectAllChecked}}
-                            sentryLabel={CONST.SENTRY_LABEL.SEARCH.SELECT_ALL_BUTTON}
-                            dataSet={{[CONST.SELECTION_SCRAPER_HIDDEN_ELEMENT]: true}}
-                        >
-                            <Text style={[styles.textMicroSupporting, styles.ph3]}>{translate('workspace.people.selectAll')}</Text>
-                        </PressableWithFeedback>
-                    )}
                 </View>
             )}
             <BaseSearchList

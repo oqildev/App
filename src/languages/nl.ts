@@ -7750,6 +7750,7 @@ Voeg meer bestedingsregels toe om de kasstroom van het bedrijf te beschermen.`,
         },
         exportedTo: 'Geëxporteerd naar',
         exportAll: {
+            selectAllOnThisPage: 'Alles op deze pagina selecteren',
             selectAllMatchingItems: 'Selecteer alle overeenkomende items',
             allMatchingItemsSelected: 'Alle overeenkomende items geselecteerd',
         },

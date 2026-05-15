@@ -7738,6 +7738,7 @@ Adicione mais regras de gasto para proteger o fluxo de caixa da empresa.`,
         },
         exportedTo: 'Exportado para',
         exportAll: {
+            selectAllOnThisPage: 'Selecionar tudo nesta página',
             selectAllMatchingItems: 'Selecionar todos os itens correspondentes',
             allMatchingItemsSelected: 'Todos os itens correspondentes selecionados',
         },

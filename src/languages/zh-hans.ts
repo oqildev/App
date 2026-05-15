@@ -7554,6 +7554,7 @@ ${reportName}
         },
         exportedTo: '已导出到',
         exportAll: {
+            selectAllOnThisPage: '选择本页全部',
             selectAllMatchingItems: '选择所有匹配的项目',
             allMatchingItemsSelected: '已选择所有匹配的项目',
         },

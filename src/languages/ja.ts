@@ -7690,6 +7690,7 @@ ${reportName}
         },
         exportedTo: 'エクスポート先',
         exportAll: {
+            selectAllOnThisPage: 'このページのすべてを選択',
             selectAllMatchingItems: '一致する項目をすべて選択',
             allMatchingItemsSelected: '一致する項目をすべて選択済み',
         },

@@ -7646,6 +7646,7 @@ ${amount} para ${merchant} - ${date}`,
         },
         exportedTo: 'Exported to',
         exportAll: {
+            selectAllOnThisPage: 'Seleccionar todo en esta página',
             selectAllMatchingItems: 'Seleccionar todos los elementos coincidentes',
             allMatchingItemsSelected: 'Todos los elementos coincidentes seleccionados',
         },

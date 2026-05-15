@@ -60,7 +60,6 @@ const defaultSearchStateContext: SearchStateContextValue = {
     ...defaultSearchContextData,
     lastSearchType: undefined,
     areAllMatchingItemsSelected: false,
-    shouldShowSelectAllMatchingItems: false,
     shouldShowFiltersBarLoading: false,
     currentSearchResults: undefined,
     shouldUseLiveData: false,
@@ -73,7 +72,6 @@ const defaultSearchActionsContext: SearchActionsContextValue = {
     removeTransaction: () => {},
     clearSelectedTransactions: () => {},
     setShouldShowFiltersBarLoading: () => {},
-    setShouldShowSelectAllMatchingItems: () => {},
     selectAllMatchingItems: () => {},
     setShouldResetSearchQuery: () => {},
 };
@@ -104,7 +102,6 @@ function SearchContextProvider({children}: SearchContextProps) {
     const [lastSearchType, setLastSearchType] = useState<string>();
     const [areAllMatchingItemsSelected, selectAllMatchingItems] = useState(false);
     const [shouldShowFiltersBarLoading, setShouldShowFiltersBarLoading] = useState(false);
-    const [shouldShowSelectAllMatchingItems, setShouldShowSelectAllMatchingItems] = useState(false);
     const [searchContextData, setSearchContextData] = useState({...defaultSearchContextData});
 
     const currentSearchHash = currentSearchQueryJSON?.hash ?? -1;
@@ -277,11 +274,10 @@ function SearchContextProvider({children}: SearchContextProps) {
                 };
             });
 
-            setShouldShowSelectAllMatchingItems(false);
             selectAllMatchingItems(false);
         },
         // currentSearchHash is read via currentSearchHashRef to keep this callback stable.
-        // setShouldShowSelectAllMatchingItems and selectAllMatchingItems are stable useState setters.
+        // selectAllMatchingItems is a stable useState setter.
         [setSelectedTransactions],
     );
 
@@ -334,7 +330,6 @@ function SearchContextProvider({children}: SearchContextProps) {
             shouldUseLiveData,
             shouldShowFiltersBarLoading,
             lastSearchType,
-            shouldShowSelectAllMatchingItems,
             areAllMatchingItemsSelected,
             currentSearchQueryJSON,
         }),
@@ -348,7 +343,6 @@ function SearchContextProvider({children}: SearchContextProps) {
             shouldUseLiveData,
             shouldShowFiltersBarLoading,
             lastSearchType,
-            shouldShowSelectAllMatchingItems,
             areAllMatchingItemsSelected,
             currentSearchQueryJSON,
         ],
@@ -362,12 +356,11 @@ function SearchContextProvider({children}: SearchContextProps) {
             clearSelectedTransactions,
             setShouldShowFiltersBarLoading,
             setLastSearchType,
-            setShouldShowSelectAllMatchingItems,
             selectAllMatchingItems,
             setShouldResetSearchQuery,
         }),
-        // shouldShowFiltersBarLoading, setLastSearchType, setShouldShowSelectAllMatchingItems,
-        // and selectAllMatchingItems are stable useState setters — excluded from deps intentionally.
+        // shouldShowFiltersBarLoading, setLastSearchType, and selectAllMatchingItems are stable
+        // useState setters — excluded from deps intentionally.
         // setCurrentSelectedTransactionReportID only uses setSearchContextData (stable setter).
         [removeTransaction, setSelectedTransactions, clearSelectedTransactions, setShouldResetSearchQuery],
     );
