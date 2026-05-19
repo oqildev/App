@@ -26,6 +26,7 @@ import {getDefaultApprover, isPolicyAdmin} from '@libs/PolicyUtils';
 import * as ReportActionsUtils from '@libs/ReportActionsUtils';
 import * as ReportUtils from '@libs/ReportUtils';
 import * as FormActions from '@userActions/FormActions';
+import {getFinishOnboardingTaskOnyxData} from '@userActions/Task';
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
 import type {ImportedSpreadsheetMemberData, InvitedEmailsToAccountIDs, Policy, PolicyEmployee, PolicyOwnershipChangeChecks, Report, ReportAction, ReportActions} from '@src/types/onyx';
@@ -947,6 +948,14 @@ function buildAddMembersToWorkspaceOnyxData(
  * Adds members to the specified workspace/policyID
  * Please see https://github.com/Expensify/App/blob/main/README.md#Security for more details
  */
+type InviteTeamOnboardingTaskData = {
+    inviteTeamTaskReport?: OnyxEntry<Report>;
+    inviteTeamTaskParentReport?: OnyxEntry<Report>;
+    isInviteTeamTaskParentReportArchived?: boolean;
+    hasOutstandingChildTask?: boolean;
+    parentReportAction?: OnyxEntry<ReportAction>;
+};
+
 function addMembersToWorkspace(
     invitedEmailsToAccountIDs: InvitedEmailsToAccountIDs,
     welcomeNote: string,
@@ -958,6 +967,7 @@ function addMembersToWorkspace(
     approverEmail?: string,
     // TODO: Remove optional (?) once all callers are updated in follow-up PRs of https://github.com/Expensify/App/issues/66578
     reportActionsList?: OnyxCollection<ReportActions>,
+    inviteTeamOnboardingTaskData?: InviteTeamOnboardingTaskData,
 ) {
     if (!policy?.id) {
         Log.warn('addMembersToWorkspace: Policy ID is undefined');
@@ -974,6 +984,24 @@ function addMembersToWorkspace(
         undefined,
         reportActionsList,
     );
+
+    // Auto-check the "Invite your team" onboarding task when the invite succeeds. The shared
+    // getFinishOnboardingTaskOnyxData helper guards on the task being non-null + actionable + not
+    // already APPROVED, so this is a no-op outside the onboarding flow or for re-invites.
+    if (inviteTeamOnboardingTaskData?.inviteTeamTaskReport) {
+        const finishOnboardingTaskData = getFinishOnboardingTaskOnyxData(
+            inviteTeamOnboardingTaskData.inviteTeamTaskReport,
+            inviteTeamOnboardingTaskData.inviteTeamTaskParentReport,
+            inviteTeamOnboardingTaskData.isInviteTeamTaskParentReportArchived ?? false,
+            currentUserAccountID,
+            inviteTeamOnboardingTaskData.hasOutstandingChildTask ?? false,
+            inviteTeamOnboardingTaskData.parentReportAction,
+            undefined,
+        );
+        optimisticData.push(...((finishOnboardingTaskData.optimisticData ?? []) as typeof optimisticData));
+        successData.push(...((finishOnboardingTaskData.successData ?? []) as typeof successData));
+        failureData.push(...((finishOnboardingTaskData.failureData ?? []) as typeof failureData));
+    }
 
     const params: AddMembersToWorkspaceParams = {
         employees: JSON.stringify(logins.map((login) => ({email: login, role, ...(approverEmail ? {submitsTo: approverEmail} : {})}))),

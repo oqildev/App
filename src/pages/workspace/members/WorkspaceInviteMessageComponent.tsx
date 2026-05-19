@@ -17,6 +17,7 @@ import TextInput from '@components/TextInput';
 import useAllPolicyExpenseChatReportActions from '@hooks/useAllPolicyExpenseChatReportActions';
 import useAutoFocusInput from '@hooks/useAutoFocusInput';
 import useLocalize from '@hooks/useLocalize';
+import useOnboardingTaskInformation from '@hooks/useOnboardingTaskInformation';
 import useOnyx from '@hooks/useOnyx';
 import useThemeStyles from '@hooks/useThemeStyles';
 import {clearDraftValues} from '@libs/actions/FormActions';
@@ -71,6 +72,14 @@ function WorkspaceInviteMessageComponent({
     const filteredReportActions = useAllPolicyExpenseChatReportActions();
 
     const [welcomeNote, setWelcomeNote] = useState<string>();
+
+    const {
+        taskReport: inviteTeamTaskReport,
+        taskParentReport: inviteTeamTaskParentReport,
+        isOnboardingTaskParentReportArchived: isInviteTeamTaskParentReportArchived,
+        hasOutstandingChildTask,
+        parentReportAction,
+    } = useOnboardingTaskInformation(CONST.ONBOARDING_TASK_TYPE.INVITE_TEAM);
 
     const {inputCallbackRef, inputRef} = useAutoFocusInput();
 
@@ -160,6 +169,13 @@ function WorkspaceInviteMessageComponent({
             currentUserPersonalDetails?.accountID ?? CONST.DEFAULT_NUMBER_ID,
             shouldShowApproverRow ? validatedApprover : undefined,
             filteredReportActions,
+            {
+                inviteTeamTaskReport,
+                inviteTeamTaskParentReport,
+                isInviteTeamTaskParentReportArchived,
+                hasOutstandingChildTask,
+                parentReportAction,
+            },
         );
         setWorkspaceInviteMessageDraft(policyID, welcomeNote ?? null);
         clearDraftValues(ONYXKEYS.FORMS.WORKSPACE_INVITE_MESSAGE_FORM);

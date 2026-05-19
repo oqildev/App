@@ -11766,6 +11766,10 @@ function prepareOnboardingOnyxData({
     let addExpenseApprovalsTaskReportID;
     let setupTagsTaskReportID;
     let setupCategoriesAndTagsTaskReportID;
+    let viewTourTaskReportID;
+    let setupCategoriesTaskReportID;
+    let inviteTeamTaskReportID;
+    let connectCorporateCardTaskReportID;
     // If shouldUseFollowupsInsteadOfTasks we do not want to generate tasks in favour of followups.
     const tasks = shouldUseFollowupsInsteadOfTasks ? [] : onboardingMessage.tasks;
     const tasksData = tasks
@@ -11863,6 +11867,18 @@ function prepareOnboardingOnyxData({
             }
             if (task.type === CONST.ONBOARDING_TASK_TYPE.SETUP_CATEGORIES_AND_TAGS) {
                 setupCategoriesAndTagsTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.VIEW_TOUR) {
+                viewTourTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.SETUP_CATEGORIES) {
+                setupCategoriesTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.INVITE_TEAM) {
+                inviteTeamTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.CONNECT_CORPORATE_CARD) {
+                connectCorporateCardTaskReportID = currentTask.reportID;
             }
 
             return {
@@ -11969,36 +11985,60 @@ function prepareOnboardingOnyxData({
                     managerID: deprecatedCurrentUserAccountID,
                 },
             });
+
+            // Mirror the completion onto the parent chat's task-preview action so TaskPreview's
+            // fallback (action.childStateNum / childStatusNum) renders the checkbox as checked
+            // when the task sub-report isn't hydrated yet (e.g. after refresh / cold start).
+            acc.push({
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${targetChatReportID}`,
+                value: {
+                    [taskReportAction.reportAction.reportActionID]: {
+                        childStateNum: CONST.REPORT.STATE_NUM.APPROVED,
+                        childStatusNum: CONST.REPORT.STATUS_NUM.APPROVED,
+                    },
+                },
+            });
         }
 
         return acc;
     }, []);
 
-    const tasksForFailureData = tasksData.reduce<Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS | typeof ONYXKEYS.COLLECTION.REPORT>>>((acc, {currentTask, taskReportAction}) => {
-        acc.push(
-            {
-                onyxMethod: Onyx.METHOD.MERGE,
-                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${targetChatReportID}`,
-                value: {
-                    [taskReportAction.reportAction.reportActionID]: {
-                        errors: getMicroSecondOnyxErrorWithTranslationKey('report.genericAddCommentFailureMessage'),
-                    } as ReportAction,
+    const tasksForFailureData = tasksData.reduce<Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS | typeof ONYXKEYS.COLLECTION.REPORT>>>(
+        (acc, {currentTask, taskReportAction, completedTaskReportAction}) => {
+            acc.push(
+                {
+                    onyxMethod: Onyx.METHOD.MERGE,
+                    key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${targetChatReportID}`,
+                    value: {
+                        [taskReportAction.reportAction.reportActionID]: {
+                            errors: getMicroSecondOnyxErrorWithTranslationKey('report.genericAddCommentFailureMessage'),
+                            // If the task was optimistically auto-completed, mirror the parent
+                            // action's child state back to OPEN so a server rejection doesn't
+                            // leave the task-preview rendering as checked.
+                            ...(completedTaskReportAction && {
+                                childStateNum: CONST.REPORT.STATE_NUM.OPEN,
+                                childStatusNum: CONST.REPORT.STATUS_NUM.OPEN,
+                            }),
+                        } as ReportAction,
+                    },
                 },
-            },
-            {
-                onyxMethod: Onyx.METHOD.MERGE,
-                key: `${ONYXKEYS.COLLECTION.REPORT}${currentTask.reportID}`,
-                value: null,
-            },
-            {
-                onyxMethod: Onyx.METHOD.MERGE,
-                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${currentTask.reportID}`,
-                value: null,
-            },
-        );
+                {
+                    onyxMethod: Onyx.METHOD.MERGE,
+                    key: `${ONYXKEYS.COLLECTION.REPORT}${currentTask.reportID}`,
+                    value: null,
+                },
+                {
+                    onyxMethod: Onyx.METHOD.MERGE,
+                    key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${currentTask.reportID}`,
+                    value: null,
+                },
+            );
 
-        return acc;
-    }, []);
+            return acc;
+        },
+        [],
+    );
 
     const tasksForSuccessData = tasksData.reduce<
         Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS | typeof ONYXKEYS.COLLECTION.REPORT | typeof ONYXKEYS.COLLECTION.REPORT_METADATA>>
@@ -12074,6 +12114,10 @@ function prepareOnboardingOnyxData({
                 addExpenseApprovals: addExpenseApprovalsTaskReportID,
                 setupTags: setupTagsTaskReportID,
                 setupCategoriesAndTags: setupCategoriesAndTagsTaskReportID,
+                viewTour: viewTourTaskReportID,
+                setupCategories: setupCategoriesTaskReportID,
+                inviteTeam: inviteTeamTaskReportID,
+                connectCorporateCard: connectCorporateCardTaskReportID,
             },
         },
     );
@@ -12177,6 +12221,10 @@ function prepareOnboardingOnyxData({
                 addExpenseApprovals: null,
                 setupCategoriesAndTags: null,
                 setupTags: null,
+                viewTour: null,
+                setupCategories: null,
+                inviteTeam: null,
+                connectCorporateCard: null,
             },
         },
     );
