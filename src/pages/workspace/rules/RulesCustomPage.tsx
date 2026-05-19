@@ -35,7 +35,7 @@ function RulesCustomPage({
     const styles = useThemeStyles();
     const {isBetaEnabled} = usePermissions();
 
-    const [customRulesValue, setCustomRulesValue] = useState(() => Parser.htmlToMarkdown(policy?.customRules ?? ''));
+    const [customRulesValue, setCustomRulesValue] = useState(() => Parser.htmlToMarkdown(String(policy?.customRules ?? '')));
 
     const onChangeCustomRules = useCallback((newValue: string) => {
         setCustomRulesValue(newValue);

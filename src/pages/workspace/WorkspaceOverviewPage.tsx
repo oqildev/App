@@ -173,7 +173,7 @@ function WorkspaceOverviewPage({policyDraft, policy: policyProp, route}: Workspa
         Navigation.navigate(createDynamicRoute(DYNAMIC_ROUTES.WORKSPACE_OVERVIEW_PLAN.path));
     };
     const policyName = policy?.name ?? '';
-    const policyDescription = policy?.description ?? translate('workspace.common.defaultDescription');
+    const policyDescription = String(policy?.description ?? translate('workspace.common.defaultDescription'));
     const policyCurrency = policy?.outputCurrency ?? '';
     const readOnly = !isPolicyAdminPolicyUtils(policy);
     const currencyReadOnly = readOnly || isBankAccountVerified;
@@ -646,7 +646,7 @@ function WorkspaceOverviewPage({policyDraft, policy: policyProp, route}: Workspa
                             titleAccessibilityRole={CONST.ROLE.HEADER}
                         />
                     </OfflineWithFeedback>
-                    {(!StringUtils.isEmptyString(policy?.description ?? '') || !readOnly || (prevIsPendingDelete && !isPendingDelete)) && (
+                    {(!StringUtils.isEmptyString(String(policy?.description ?? '')) || !readOnly || (prevIsPendingDelete && !isPendingDelete)) && (
                         <OfflineWithFeedback
                             pendingAction={policy?.pendingFields?.description}
                             errors={getLatestErrorField(policy ?? {}, CONST.POLICY.COLLECTION_KEYS.DESCRIPTION)}
@@ -766,7 +766,7 @@ function WorkspaceOverviewPage({policyDraft, policy: policyProp, route}: Workspa
                     >
                         <OfflineWithFeedback pendingAction={policy?.pendingFields?.customRules}>
                             <MenuItemWithTopDescription
-                                title={policy?.customRules ?? ''}
+                                title={String(policy?.customRules ?? '')}
                                 description={translate('workspace.editor.policy')}
                                 sentryLabel={CONST.SENTRY_LABEL.WORKSPACE.OVERVIEW.CUSTOM_RULES}
                                 shouldShowRightIcon={!readOnly}

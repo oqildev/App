@@ -49,7 +49,10 @@ type Extras = {
 
 class ExpensiMarkWithContext extends ExpensiMark {
     htmlToMarkdown(htmlString: string, extras?: Extras): string {
-        return super.htmlToMarkdown(htmlString, {
+        // Defensive coercion: some Onyx-backed fields (e.g. policy.customRules / policy.description)
+        // can be merged from the backend as numbers even though the type contract is string.
+        // Coerce here so that ExpensiMark's .replace calls don't throw on non-string input.
+        return super.htmlToMarkdown(String(htmlString ?? ''), {
             reportIDToName: extras?.reportIDToName ?? reportIDToNameMap,
             accountIDToName: extras?.accountIDToName ?? accountIDToNameMap,
             cacheVideoAttributes: extras?.cacheVideoAttributes,

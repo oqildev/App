@@ -28,7 +28,7 @@ function WorkspaceOverviewDescriptionPage({policy}: Props) {
     const styles = useThemeStyles();
     const {translate} = useLocalize();
     const isInputInitializedRef = useRef(false);
-    const [description, setDescription] = useState(() => Parser.htmlToMarkdown(policy?.description ?? translate('workspace.common.defaultDescription')));
+    const [description, setDescription] = useState(() => Parser.htmlToMarkdown(String(policy?.description ?? translate('workspace.common.defaultDescription'))));
 
     /**
      * @param {Object} values - form input values passed by the Form component

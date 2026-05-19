@@ -19,11 +19,15 @@ function sanitizeString(str: string): string {
  *  Check if the string would be empty if all invisible characters were removed.
  */
 function isEmptyString(value: string): boolean {
+    // Coerce to string so that values that violate the type contract at runtime
+    // (e.g. a numeric value coming back from the API) don't throw from .replaceAll.
+    const str = String(value ?? '');
+
     // We implemented a custom emoji on this Unicode Private Use Area (PUA) code point
     // so we should not remove it.
     // Temporarily replace \uE100 with a placeholder
     const PLACEHOLDER = '<<KEEP_E100>>';
-    let transformed = value.replaceAll('\uE100', PLACEHOLDER);
+    let transformed = str.replaceAll('\uE100', PLACEHOLDER);
 
     // \p{C} matches all 'Other' characters
     // \p{Z} matches all separators (spaces etc.)
