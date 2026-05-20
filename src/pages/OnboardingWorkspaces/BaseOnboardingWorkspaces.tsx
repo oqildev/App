@@ -4,6 +4,7 @@ import React, {useState} from 'react';
 import {View} from 'react-native';
 import Button from '@components/Button';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import ScreenWrapper from '@components/ScreenWrapper';
 import SelectionList from '@components/SelectionList';
 import UserListItem from '@components/SelectionList/ListItem/UserListItem';
@@ -63,6 +64,9 @@ function BaseOnboardingWorkspaces({route, shouldUseNativeStyles}: BaseOnboarding
 
     const isValidated = isCurrentUserValidated(loginList, session?.email);
 
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
+
     const {isBetaEnabled} = usePermissions();
     const [conciergeReportID = ''] = useOnyx(ONYXKEYS.CONCIERGE_REPORT_ID);
 
@@ -99,6 +103,9 @@ function BaseOnboardingWorkspaces({route, shouldUseNativeStyles}: BaseOnboarding
             policy.automaticJoiningEnabled ? policy.policyID : undefined,
             undefined,
             false,
+            undefined,
+            initialURL,
+            setInitialURL,
         );
     };
 

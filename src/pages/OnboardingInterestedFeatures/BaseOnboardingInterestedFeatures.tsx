@@ -6,6 +6,7 @@ import Checkbox from '@components/Checkbox';
 import FixedFooter from '@components/FixedFooter';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
 import Icon from '@components/Icon';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import {PressableWithoutFeedback} from '@components/Pressable';
 import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
@@ -67,6 +68,8 @@ function BaseOnboardingInterestedFeatures({shouldUseNativeStyles}: BaseOnboardin
     const archivedReportsIdSet = useArchivedReportsIdSet();
     const hasActiveAdminPolicies = useHasActiveAdminPolicies();
     const lastWorkspaceNumber = useLastWorkspaceNumber();
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
 
     const paidGroupPolicy = Object.values(allPolicies ?? {}).find((policy) => isPaidGroupPolicy(policy) && isPolicyAdmin(policy, session?.email));
     const {isOffline} = useNetwork();
@@ -255,6 +258,9 @@ function BaseOnboardingInterestedFeatures({shouldUseNativeStyles}: BaseOnboardin
                 // Onboarding tasks would show in Concierge instead of admins room for testing accounts, we should open where onboarding tasks are located
                 // See https://github.com/Expensify/App/issues/57167 for more details
                 (session?.email ?? '').includes('+'),
+                undefined,
+                initialURL,
+                setInitialURL,
             );
         } catch (error) {
             Log.warn('[BaseOnboardingInterestedFeatures] Error completing onboarding', {error});
@@ -288,6 +294,8 @@ function BaseOnboardingInterestedFeatures({shouldUseNativeStyles}: BaseOnboardin
         hasActiveAdminPolicies,
         lastWorkspaceNumber,
         translate,
+        initialURL,
+        setInitialURL,
     ]);
 
     // Create items for enabled features

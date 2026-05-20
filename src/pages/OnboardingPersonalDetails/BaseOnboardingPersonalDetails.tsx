@@ -5,6 +5,7 @@ import FormProvider from '@components/Form/FormProvider';
 import InputWrapper from '@components/Form/InputWrapper';
 import type {FormOnyxValues} from '@components/Form/types';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import ScreenWrapper from '@components/ScreenWrapper';
 import Text from '@components/Text';
 import TextInput from '@components/TextInput';
@@ -69,6 +70,9 @@ function BaseOnboardingPersonalDetails({currentUserPersonalDetails, shouldUseNat
     const isPrivateDomainAndHasAccessiblePolicies = !account?.isFromPublicDomain && !!account?.hasAccessibleDomainPolicies;
     const isValidated = isCurrentUserValidated(loginList, session?.email);
 
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
+
     const isVsb = onboardingValues?.signupQualifier === CONST.ONBOARDING_SIGNUP_QUALIFIERS.VSB;
     const isSmb = onboardingValues?.signupQualifier === CONST.ONBOARDING_SIGNUP_QUALIFIERS.SMB;
 
@@ -104,6 +108,9 @@ function BaseOnboardingPersonalDetails({currentUserPersonalDetails, shouldUseNat
                 onboardingPolicyID,
                 mergedAccountConciergeReportID,
                 false,
+                undefined,
+                initialURL,
+                setInitialURL,
             );
         },
         [
@@ -119,6 +126,8 @@ function BaseOnboardingPersonalDetails({currentUserPersonalDetails, shouldUseNat
             introSelected,
             isSelfTourViewed,
             betas,
+            initialURL,
+            setInitialURL,
         ],
     );
 

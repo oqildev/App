@@ -4,6 +4,7 @@ import {View} from 'react-native';
 import Button from '@components/Button';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
 import Icon from '@components/Icon';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import RenderHTML from '@components/RenderHTML';
 import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
@@ -72,6 +73,8 @@ function BaseOnboardingWorkspaceOptional({shouldUseNativeStyles}: BaseOnboarding
     const currentUserPersonalDetails = useCurrentUserPersonalDetails();
     const hasActiveAdminPolicies = useHasActiveAdminPolicies();
     const {isBetaEnabled} = usePermissions();
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
     const ICON_SIZE = 48;
     const illustrations = useMemoizedLazyIllustrations(['MoneyReceipts', 'Tag', 'ReportReceipt']);
     const preferredCurrency = usePreferredCurrency();
@@ -132,6 +135,9 @@ function BaseOnboardingWorkspaceOptional({shouldUseNativeStyles}: BaseOnboarding
                 resolvedPolicyID,
                 mergedAccountConciergeReportID,
                 false,
+                undefined,
+                initialURL,
+                setInitialURL,
             );
         },
         [
@@ -149,6 +155,8 @@ function BaseOnboardingWorkspaceOptional({shouldUseNativeStyles}: BaseOnboarding
             conciergeChatReportID,
             betas,
             isSelfTourViewed,
+            initialURL,
+            setInitialURL,
         ],
     );
 

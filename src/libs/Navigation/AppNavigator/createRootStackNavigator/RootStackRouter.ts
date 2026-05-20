@@ -1,14 +1,17 @@
 import {CommonActions, StackRouter} from '@react-navigation/native';
-import type {RouterConfigOptions, StackActionType, StackNavigationState} from '@react-navigation/native';
+import type {NavigationState, PartialState, RouterConfigOptions, StackActionType, StackNavigationState} from '@react-navigation/native';
 import type {ParamListBase} from '@react-navigation/routers';
+import {getCurrentInitialURL} from '@components/InitialURLContextProvider';
 import {createGuardContext, evaluateGuards} from '@libs/Navigation/guards';
 import getAdaptedStateFromPath from '@libs/Navigation/helpers/getAdaptedStateFromPath';
 import {isFullScreenName} from '@libs/Navigation/helpers/isNavigatorName';
 import isSideModalNavigator from '@libs/Navigation/helpers/isSideModalNavigator';
 import {getTabScreenParam} from '@libs/Navigation/helpers/tabNavigatorUtils';
 import {linkingConfig} from '@libs/Navigation/linkingConfig';
+import {getReportIDFromLink} from '@libs/ReportUtils';
 import CONST from '@src/CONST';
 import NAVIGATORS from '@src/NAVIGATORS';
+import ROUTES from '@src/ROUTES';
 import {
     handleDismissModalAction,
     handleNavigatingToModalFromModal,
@@ -101,10 +104,33 @@ function handleNavigationGuards(
             return null;
         }
 
+        let resetRoutes: typeof redirectState.routes = redirectState.routes;
+
+        // For the signed-out deep-link → sign-up flow (#85242), when the REDIRECT targets the
+        // OnboardingModalNavigator and a report deep-link URL was captured at startup, build
+        // REPORTS_SPLIT_NAVIGATOR(<id>) from the captured URL and use it as the base under the
+        // onboarding modal. Without this, the new state is [HOME, OnboardingModal] and the
+        // deep-linked report is lost — because anonymous users route /r/<id> through HOME + SignIn
+        // RHP, so the report never enters the navigation state; it lives only in InitialURLContextProvider.
+        // Building [REPORTS_SPLIT, OnboardingModal] from scratch (not copying state.routes) implicitly
+        // prevents the #86258 "two Expensify logos" regression because the SignIn RHP is never copied.
+        const redirectTarget = redirectState.routes.at(-1);
+        if (redirectTarget?.name === NAVIGATORS.ONBOARDING_MODAL_NAVIGATOR) {
+            const initialURL = getCurrentInitialURL();
+            const deepLinkReportID = getReportIDFromLink(initialURL);
+            if (deepLinkReportID) {
+                const reportState = getAdaptedStateFromPath(ROUTES.REPORT_WITH_ID.getRoute(deepLinkReportID), linkingConfig.config);
+                const injectedFullScreen = reportState?.routes.findLast((route) => isFullScreenName(route.name));
+                if (injectedFullScreen) {
+                    resetRoutes = [injectedFullScreen, redirectTarget] as typeof redirectState.routes;
+                }
+            }
+        }
+
         const resetAction = CommonActions.reset({
-            index: redirectState.index ?? redirectState.routes.length - 1,
-            routes: redirectState.routes,
-        });
+            index: resetRoutes.length - 1,
+            routes: resetRoutes,
+        } as PartialState<NavigationState>);
 
         return stackRouter.getStateForAction(state, resetAction, configOptions);
     }

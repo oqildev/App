@@ -1,6 +1,7 @@
 import {hasSeenTourSelector} from '@selectors/Onboarding';
 import {useCallback, useMemo} from 'react';
 import type {OnyxCollection} from 'react-native-onyx';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import isSidePanelReportSupported from '@components/SidePanel/isSidePanelReportSupported';
 import Log from '@libs/Log';
 import {navigateAfterOnboardingWithMicrotaskQueue} from '@libs/navigateAfterOnboarding';
@@ -58,6 +59,8 @@ function useAutoCreateTrackWorkspace() {
     const {isRestrictedPolicyCreation} = usePreferredPolicy();
     const hasActiveAdminPolicies = useHasActiveAdminPolicies();
     const {onboardingMessages} = useOnboardingMessages();
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
 
     // We use isSmallScreenWidth instead of shouldUseNarrowLayout because navigateAfterOnboarding
     // relies on actual device screen width to handle navigation stack differences: on small screens,
@@ -130,6 +133,8 @@ function useAutoCreateTrackWorkspace() {
                     mergedAccountConciergeReportID,
                     false,
                     rhpVariant,
+                    initialURL,
+                    setInitialURL,
                 );
             }
         },
@@ -155,6 +160,8 @@ function useAutoCreateTrackWorkspace() {
             conciergeChatReportID,
             archivedReportsIdSet,
             mergedAccountConciergeReportID,
+            initialURL,
+            setInitialURL,
         ],
     );
 

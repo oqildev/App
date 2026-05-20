@@ -3,6 +3,7 @@ import React, {useEffect, useState} from 'react';
 import {View} from 'react-native';
 import Button from '@components/Button';
 import HeaderWithBackButton from '@components/HeaderWithBackButton';
+import {useInitialURLActions, useInitialURLState} from '@components/InitialURLContextProvider';
 import {useSession} from '@components/OnyxListItemProvider';
 import ScreenWrapper from '@components/ScreenWrapper';
 import InviteMemberListItem from '@components/SelectionList/ListItem/InviteMemberListItem';
@@ -66,6 +67,8 @@ function BaseOnboardingWorkspaceInvite({shouldUseNativeStyles}: BaseOnboardingWo
     const {isBetaEnabled} = usePermissions();
     const [conciergeReportID = ''] = useOnyx(ONYXKEYS.CONCIERGE_REPORT_ID);
     const archivedReportsIdSet = useArchivedReportsIdSet();
+    const {initialURL} = useInitialURLState();
+    const {setInitialURL} = useInitialURLActions();
 
     const ineligibleInvitees = getIneligibleInvitees(policy?.employeeList);
     const excludedUsers: Record<string, boolean> = {};
@@ -150,6 +153,9 @@ function BaseOnboardingWorkspaceInvite({shouldUseNativeStyles}: BaseOnboardingWo
             // Onboarding tasks would show in Concierge instead of admins room for testing accounts, we should open where onboarding tasks are located
             // See https://github.com/Expensify/App/issues/57167 for more details
             (session?.email ?? '').includes('+'),
+            undefined,
+            initialURL,
+            setInitialURL,
         );
     };
 

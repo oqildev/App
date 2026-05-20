@@ -4,11 +4,12 @@ import {handleRHPVariantNavigation, shouldOpenRHPVariant} from '@components/Side
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
+import type {Route} from '@src/ROUTES';
 import type {OnboardingRHPVariant} from '@src/types/onyx';
 import {setDisableDismissOnEscape} from './actions/Modal';
 import shouldOpenOnAdminRoom from './Navigation/helpers/shouldOpenOnAdminRoom';
 import Navigation from './Navigation/Navigation';
-import {findLastAccessedReport, isConciergeChatReport, isSelfDM} from './ReportUtils';
+import {findLastAccessedReport, getReportIDFromLink, isConciergeChatReport, isSelfDM} from './ReportUtils';
 import type {ArchivedReportsIDSet} from './SearchUIUtils';
 
 let onboardingRHPVariant: OnyxEntry<OnboardingRHPVariant>;
@@ -64,8 +65,23 @@ function navigateAfterOnboarding(
     onboardingAdminsChatReportID?: string,
     shouldPreventOpenAdminRoom = false,
     variantOverride?: OnboardingRHPVariant | null,
+    initialURL?: Route | null,
+    setInitialURL?: (url: Route | null) => void,
 ) {
     setDisableDismissOnEscape(false);
+
+    // If a deep-link report URL was captured at app startup (e.g. user opened /r/<id> while signed
+    // out, then signed up), prioritize landing on that report. Layer 1 already preserves the
+    // ReportsSplitNavigator route under the OnboardingModal during the REDIRECT, so this navigate
+    // call resolves to the already-focused route after dismissModal — no extra push needed.
+    // getReportIDFromLink returns an empty string for non-report URLs and sub-report pages, so
+    // /settings/*, /concierge, /r/<id>/details are not consumed here.
+    const deepLinkReportID = getReportIDFromLink(initialURL ?? null);
+    if (deepLinkReportID) {
+        setInitialURL?.(null);
+        Navigation.navigate(ROUTES.REPORT_WITH_ID.getRoute(deepLinkReportID));
+        return;
+    }
 
     // On mobile (small screen), Track workspace admins with the trackExpensesWithConcierge variant
     // should navigate directly to the Concierge DM (which contains onboarding tasks).
@@ -108,6 +124,8 @@ function navigateAfterOnboardingWithMicrotaskQueue(
     onboardingAdminsChatReportID?: string,
     shouldPreventOpenAdminRoom = false,
     variantOverride?: OnboardingRHPVariant | null,
+    initialURL?: Route | null,
+    setInitialURL?: (url: Route | null) => void,
 ) {
     Navigation.dismissModal();
     Navigation.setNavigationActionToMicrotaskQueue(() => {
@@ -120,6 +138,8 @@ function navigateAfterOnboardingWithMicrotaskQueue(
             onboardingAdminsChatReportID,
             shouldPreventOpenAdminRoom,
             variantOverride,
+            initialURL,
+            setInitialURL,
         );
     });
 }

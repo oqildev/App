@@ -3,6 +3,18 @@ import type {ReactNode} from 'react';
 import {Linking} from 'react-native';
 import type {Route} from '@src/ROUTES';
 
+/**
+ * Module-level mirror of the React initialURL state. Plain (non-React) modules
+ * like RootStackRouter need to read the captured deep-link URL synchronously,
+ * but cannot subscribe to React context. The InitialURLContextProvider keeps
+ * this mirror in sync via a useEffect.
+ */
+let currentInitialURL: Route | null = null;
+
+function getCurrentInitialURL(): Route | null {
+    return currentInitialURL;
+}
+
 type InitialUrlStateContextType = {
     initialURL: Route | null;
     isAuthenticatedAtStartup: boolean;
@@ -44,6 +56,12 @@ function InitialURLContextProvider({children}: InitialURLContextProviderProps) {
         });
     }, []);
 
+    // Mirror React state to the module-level variable so non-React modules (e.g., RootStackRouter)
+    // can read it synchronously. Cleared via setInitialURL(null) after deep-link consumption.
+    useEffect(() => {
+        currentInitialURL = initialURL;
+    }, [initialURL]);
+
     // Because of the React Compiler we don't need to memoize it manually
     // eslint-disable-next-line react/jsx-no-constructed-context-values
     const stateContextValue = {
@@ -75,4 +93,4 @@ function useInitialURLActions() {
     return useContext(InitialURLActionsContext);
 }
 
-export {useInitialURLState, useInitialURLActions};
+export {useInitialURLState, useInitialURLActions, getCurrentInitialURL};
