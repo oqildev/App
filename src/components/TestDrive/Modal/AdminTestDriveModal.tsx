@@ -1,19 +1,17 @@
 import React from 'react';
 import {InteractionManager} from 'react-native';
 import {shouldOpenRHPVariant} from '@components/SidePanel/RHPVariantTest';
+import useActivePolicy from '@hooks/useActivePolicy';
 import useLocalize from '@hooks/useLocalize';
-import useOnyx from '@hooks/useOnyx';
 import Log from '@libs/Log';
 import Navigation from '@libs/Navigation/Navigation';
-import {isAdminRoom} from '@libs/ReportUtils';
-import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
 import BaseTestDriveModal from './BaseTestDriveModal';
 
 function AdminTestDriveModal() {
     const {translate} = useLocalize();
-    const [onboarding] = useOnyx(ONYXKEYS.NVP_ONBOARDING);
-    const [onboardingReport] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT}${onboarding?.chatReportID}`);
+    const activePolicy = useActivePolicy();
+    const adminsChatReportID = activePolicy?.chatReportIDAdmins?.toString();
 
     const navigate = () => {
         Log.hmmm('[AdminTestDriveModal] Navigate function called');
@@ -35,13 +33,13 @@ function AdminTestDriveModal() {
 
         Log.hmmm('[AdminTestDriveModal] Running after interactions');
         Navigation.setNavigationActionToMicrotaskQueue(() => {
-            if (!isAdminRoom(onboardingReport)) {
-                Log.hmmm('[AdminTestDriveModal] Not an admin room');
+            if (!adminsChatReportID) {
+                Log.hmmm('[AdminTestDriveModal] No admins chat report ID on active policy');
                 return;
             }
 
-            Log.hmmm('[AdminTestDriveModal] Navigating to report', {reportID: onboardingReport?.reportID});
-            Navigation.navigate(ROUTES.REPORT_WITH_ID.getRoute(onboardingReport?.reportID));
+            Log.hmmm('[AdminTestDriveModal] Navigating to admins room', {reportID: adminsChatReportID});
+            Navigation.navigate(ROUTES.REPORT_WITH_ID.getRoute(adminsChatReportID));
         });
     };
 
