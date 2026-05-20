@@ -57,7 +57,7 @@ function PersonalInfo({onBackButtonPress, ref}: PersonalInfoProps) {
         moveTo,
         goToTheLastStep,
         // eslint-disable-next-line @typescript-eslint/no-deprecated
-    } = useSubStep({bodyContent, startFrom, onFinished: () => submit(true), onNextSubStep: () => submit(false)});
+    } = useSubStep({bodyContent, startFrom, onFinished: () => submit(true), onNextSubStep: isBankAccountVerifying ? undefined : () => submit(false)});
 
     const handleBackButtonPress = () => {
         if (isEditing) {
