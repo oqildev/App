@@ -89,10 +89,15 @@ function isPreservableDeepLinkRoute(name: string) {
     return isFullScreenName(name) || name === SCREENS.CONCIERGE;
 }
 
-type PreservationCandidate = {name: string};
+type PreservationCandidate = {name: string; state?: {routes?: unknown[]}};
 
 // DEBUG (temporary): module-level counter used to cap log output and reveal infinite REDIRECT loops.
 let debugLogCount = 0;
+
+function getNestedRouteCount(route: PreservationCandidate): number {
+    const nested = route.state?.routes;
+    return Array.isArray(nested) ? nested.length : 0;
+}
 
 function hasRoutesArray(payload: unknown): payload is {routes: PreservationCandidate[]} {
     if (!payload || typeof payload !== 'object') {
@@ -147,24 +152,33 @@ function handleNavigationGuards(
         const modalRedirectRoute = redirectState.routes.findLast((route) => isModalGuardRedirectTarget(route.name));
 
         if (modalRedirectRoute) {
-            // Inject ONLY top-level preservable routes (e.g. SCREENS.CONCIERGE) that the redirect base lacks.
-            // We deliberately do NOT mutate or replace the TabNavigator base from `redirectState`, because
-            // reusing the user's existing TabNavigator brings its nested state with it and the nested
-            // children re-dispatch actions that re-enter the guard, producing an infinite REDIRECT loop.
             const actionPayloadRoutes = getActionPayloadRoutes(action);
             const candidateRoutes: PreservationCandidate[] = [...(state.routes as PreservationCandidate[]), ...actionPayloadRoutes];
 
-            const extraRoute = candidateRoutes.find(
-                (candidate) => isPreservableDeepLinkRoute(candidate.name) && !redirectState.routes.some((redirectRoute) => redirectRoute.name === candidate.name),
-            );
-            const modalIndex = redirectState.routes.findIndex((r) => r.name === modalRedirectRoute.name);
-            if (extraRoute && modalIndex > 0) {
-                const injectedRoutes = [...redirectState.routes];
-                // Cast through unknown because `extraRoute` is typed as a minimal name-only object
-                // and react-navigation accepts partial route shapes in reset payloads (missing fields get keys generated).
-                injectedRoutes.splice(modalIndex, 0, extraRoute as unknown as (typeof injectedRoutes)[0]);
-                resetRoutes = injectedRoutes;
+            // Step 1: Replace each redirectState route with the richest matching candidate from state /
+            // action payload. This carries over TabNavigator's nested deep-link content (e.g. when the
+            // URL parsing already added REPORTS_SPLIT_NAVIGATOR(<reportID>) inside the user's TabNavigator).
+            const mergedRoutes: PreservationCandidate[] = redirectState.routes.map((redirectRoute) => {
+                let best: PreservationCandidate = redirectRoute as PreservationCandidate;
+                for (const candidate of candidateRoutes) {
+                    if (candidate.name === redirectRoute.name && getNestedRouteCount(candidate) > getNestedRouteCount(best)) {
+                        best = candidate;
+                    }
+                }
+                return best;
+            });
+
+            // Step 2: Inject extra top-level preservable routes (e.g. SCREENS.CONCIERGE that lives at
+            // the root, not inside TabNavigator) between the base and the modal.
+            const modalIndex = mergedRoutes.findIndex((r) => r.name === modalRedirectRoute.name);
+            if (modalIndex > 0) {
+                const extraRoute = candidateRoutes.find((candidate) => isPreservableDeepLinkRoute(candidate.name) && !mergedRoutes.some((merged) => merged.name === candidate.name));
+                if (extraRoute) {
+                    mergedRoutes.splice(modalIndex, 0, extraRoute);
+                }
             }
+
+            resetRoutes = mergedRoutes as unknown as typeof redirectState.routes;
         }
 
         // DEBUG (temporary): cap logs at first 30 calls and number them, so we can spot infinite loops.
