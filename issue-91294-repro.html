@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Issue #91294 - mapbox-gl fog teardown race repro</title>
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  #map { width: 100%; height: 360px; border: 1px solid #ccc; }
+  #log {
+    margin-top: 12px; padding: 8px; height: 180px; overflow: auto;
+    background: #111; color: #0f0; font-family: monospace; font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .row { margin: 8px 0; }
+  button { padding: 6px 12px; margin-right: 8px; cursor: pointer; }
+  label { margin-right: 12px; }
+</style>
+</head>
+<body>
+<h2>Issue #91294 - mapbox-gl 2.15 fog teardown race</h2>
+<p>
+  This page reproduces the Sentry crash <b>APP-MR</b>:
+  <code>TypeError: Cannot read properties of undefined (reading 'get')</code>
+  inside <code>Fog.get state()</code> -&gt; <code>this.properties.get('range')</code>.
+</p>
+<p>
+  The race is triggered by tearing down a fog-enabled map while a Marker's
+  60&nbsp;ms <code>setTimeout(_evaluateOpacity)</code> callback is still pending.
+</p>
+<div class="row">
+  <label><input type="text" id="token" placeholder="Mapbox public token (pk.*)" size="50" /></label>
+</div>
+<div class="row">
+  <label><input type="checkbox" id="applyFix" /> Apply fix: <code>map.setFog(null)</code> on load</label>
+</div>
+<div class="row">
+  <button id="start">Start stress cycle</button>
+  <button id="stop">Stop</button>
+  <button id="clear">Clear log</button>
+</div>
+<div id="map"></div>
+<pre id="log"></pre>
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+<script>
+(function () {
+  const log = (msg) => {
+    const el = document.getElementById('log');
+    el.textContent += `[${new Date().toISOString().slice(11,23)}] ${msg}\n`;
+    el.scrollTop = el.scrollHeight;
+  };
+
+  window.addEventListener('error', (ev) => {
+    log('UNCAUGHT: ' + (ev.error && ev.error.stack ? ev.error.stack.split('\n').slice(0,4).join(' | ') : ev.message));
+  });
+
+  let timer = null;
+  let cycle = 0;
+
+  function buildFogStyle() {
+    return {
+      version: 8,
+      sources: {},
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#cce' } }],
+      fog: {
+        range: [0.5, 10],
+        color: '#ffffff',
+        'high-color': '#aaccff',
+        'space-color': '#000000',
+        'horizon-blend': 0.1,
+        'star-intensity': 0
+      }
+    };
+  }
+
+  function runOneCycle() {
+    cycle++;
+    const container = document.getElementById('map');
+    const tok = document.getElementById('token').value.trim();
+    if (tok) mapboxgl.accessToken = tok;
+
+    let m;
+    try {
+      m = new mapboxgl.Map({
+        container,
+        style: buildFogStyle(),
+        center: [0, 0],
+        zoom: 2,
+        projection: 'mercator',
+      });
+    } catch (e) {
+      log('Map ctor threw: ' + e.message);
+      return;
+    }
+
+    const applyFix = document.getElementById('applyFix').checked;
+    m.on('load', () => {
+      if (applyFix) m.setFog(null);
+      // Add a marker - this schedules setTimeout(_evaluateOpacity, 60) every cycle
+      try {
+        new mapboxgl.Marker().setLngLat([0, 0]).addTo(m);
+      } catch (e) {
+        log('Marker addTo threw: ' + e.message);
+      }
+      // Race window: dispose the map BEFORE the 60 ms fade timer fires.
+      // The pending setTimeout will execute and hit Fog.get state() with a
+      // disposed style object on some cycles.
+      setTimeout(() => {
+        try { m.remove(); } catch (e) { log('remove threw: ' + e.message); }
+      }, 30 + Math.random() * 50);
+    });
+  }
+
+  document.getElementById('start').onclick = () => {
+    if (timer) return;
+    cycle = 0;
+    log('Stress cycle started. Watch for "UNCAUGHT: TypeError ... reading \'get\'" entries.');
+    timer = setInterval(runOneCycle, 250);
+  };
+  document.getElementById('stop').onclick = () => {
+    if (timer) { clearInterval(timer); timer = null; log(`Stopped after ${cycle} cycles.`); }
+  };
+  document.getElementById('clear').onclick = () => {
+    document.getElementById('log').textContent = '';
+  };
+})();
+</script>
+</body>
+</html>

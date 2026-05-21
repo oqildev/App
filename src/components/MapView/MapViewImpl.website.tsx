@@ -258,6 +258,12 @@ function MapViewImpl({
         >
             <Map
                 onDrag={() => setUserInteractedWithMap(true)}
+                onLoad={(event) => {
+                    // Disable fog to avoid a mapbox-gl 2.15 teardown race where a deferred
+                    // marker fade callback reads `Fog.state.properties` after the style is
+                    // disposed. See GH#91294 / Sentry APP-MR.
+                    event.target.setFog(null);
+                }}
                 ref={setRef}
                 mapLib={mapboxgl}
                 mapboxAccessToken={accessToken}
