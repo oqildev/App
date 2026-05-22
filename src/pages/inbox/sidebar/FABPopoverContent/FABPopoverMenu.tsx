@@ -81,7 +81,12 @@ function FABPopoverMenu({isVisible, onClose, onItemSelected, anchorRef, animatio
 
     const onItemPress = (onSelected: () => void, options?: {shouldCallAfterModalHide?: boolean}) => {
         onItemSelected();
-        if (options?.shouldCallAfterModalHide && !isSafari()) {
+        if (!isSafari()) {
+            // Defer navigation through close() on all non-Safari platforms so the modal's
+            // history-guard cleanup (in Modal.hideModal) runs before any new history entry
+            // is pushed. Previously this was gated by shouldCallAfterModalHide, which is
+            // tied to shouldUseNarrowLayout — that caused wide layouts to navigate
+            // synchronously and leave the FAB guard entry in browser history (#90776).
             close(() => {
                 navigateAfterInteraction(onSelected);
             });
