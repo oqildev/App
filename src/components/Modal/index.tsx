@@ -23,6 +23,7 @@ function Modal({fullscreen = true, onModalHide = () => {}, type, onModalShow = (
     const handlePopStateRef = useRef(() => {
         rest.onClose?.();
     });
+    const didPushGuardRef = useRef(false);
 
     // This useEffect is needed so that when the onClose function changes, the ref contains the current value of this function.
     // More information can be found here: https://github.com/Expensify/App/issues/69781
@@ -45,18 +46,18 @@ function Modal({fullscreen = true, onModalHide = () => {}, type, onModalShow = (
 
     const hideModal = () => {
         window.removeEventListener('popstate', handlePopState);
-        if ((window.history.state as WindowState)?.shouldGoBack && shouldHandleNavigationBack) {
-            onModalHide();
-            // Defer history.back() so it runs after any pending navigation
-            // callbacks (from onModalDidClose) have pushed their history entries.
-            // This prevents the popstate from undoing navigations triggered by
-            // menu item selection callbacks.
-            setTimeout(() => {
-                if (!(window.history.state as WindowState)?.shouldGoBack) {
-                    return;
-                }
-                window.history.back();
-            }, 0);
+        if (didPushGuardRef.current && shouldHandleNavigationBack) {
+            // We pushed the guard ourselves, so we own its removal regardless of whether
+            // other code has since pushed new history entries on top. Run history.back()
+            // first and defer onModalHide until popstate fires, so any navigation the
+            // close callback triggers starts from the correct entry.
+            didPushGuardRef.current = false;
+            const continueClose = () => {
+                window.removeEventListener('popstate', continueClose);
+                onModalHide();
+            };
+            window.addEventListener('popstate', continueClose, {once: true});
+            window.history.back();
         } else {
             onModalHide();
         }
@@ -69,6 +70,7 @@ function Modal({fullscreen = true, onModalHide = () => {}, type, onModalShow = (
             // and does not perform an unexpected back navigation.
             const currentState = (window.history.state ?? {}) as WindowState;
             window.history.pushState({...currentState, shouldGoBack: true}, '', null);
+            didPushGuardRef.current = true;
             window.addEventListener('popstate', handlePopState);
         }
         onModalShow?.();
