@@ -126,6 +126,10 @@ function PageNotFoundFallback({policyID, fullPageNotFoundViewProps, isFeatureEna
             }}
             // eslint-disable-next-line react/jsx-props-no-spreading
             {...fullPageNotFoundViewProps}
+            // For an inaccessible policy reached via a chat deep-link, the default goBackToHome path
+            // can't escape the cross-tab-pushed TAB_NAVIGATOR and the link looks dead. Route the link
+            // through the same helper as the back arrow so the user can always escape.
+            onLinkPress={isPolicyNotAccessible ? goBackFromWorkspaceSettingPages : fullPageNotFoundViewProps?.onLinkPress}
             shouldShowBackButton={fullPageNotFoundViewProps?.shouldShowBackButton ?? (!shouldShowFullScreenFallback ? shouldUseNarrowLayout : undefined)}
         />
     );
