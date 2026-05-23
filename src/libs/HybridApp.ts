@@ -65,6 +65,7 @@ Onyx.connectWithoutView({
     key: ONYXKEYS.NVP_ACTIVE_POLICY_ID,
     callback: (newActivePolicyID) => {
         activePolicyID = newActivePolicyID;
+        signInToOldDotAndChooseExperience(currentHybridApp, currentTryNewDot, currentCredentials, currentSession, currentAccount);
     },
 });
 
