@@ -1,6 +1,7 @@
 import type {OnyxKey} from 'react-native-onyx';
 import Onyx from 'react-native-onyx';
-import {SIDE_EFFECT_REQUEST_COMMANDS} from '@libs/API/types';
+import {SIDE_EFFECT_REQUEST_COMMANDS, WRITE_COMMANDS} from '@libs/API/types';
+import {getMicroSecondOnyxErrorWithTranslationKey} from '@libs/ErrorUtils';
 import CONST from '@src/CONST';
 import * as OnyxUpdates from '@src/libs/actions/OnyxUpdates';
 import DateUtils from '@src/libs/DateUtils';
@@ -133,6 +134,127 @@ describe('OnyxUpdatesTest', () => {
         await OnyxUpdates.apply(fullReconnectUpdates);
         const report = await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT}${reportID}`);
         expect(report).toStrictEqual(reportValue);
+    });
+
+    describe('SUBMIT_REPORT failure passes through UserNotAMember message (issue #91442)', () => {
+        const serverMessage = 'Please select another approver or have a workspace admin add user (alice@example.com) to this workspace (Acme).';
+
+        it('replaces the generic error on the optimistic SUBMITTED report action with the server message', async () => {
+            const reportID = NumberUtils.rand64();
+            const reportActionID = NumberUtils.rand64();
+
+            // Given a SUBMIT_REPORT request whose failureData pre-bakes a generic translated error on the optimistic SUBMITTED action
+            const failurePayload: OnyxUpdatesFromServer<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS> = {
+                type: CONST.ONYX_UPDATE_TYPES.HTTPS,
+                previousUpdateID: 0,
+                lastUpdateID: 1,
+                request: {
+                    command: WRITE_COMMANDS.SUBMIT_REPORT,
+                    data: {reportID, reportActionID},
+                    failureData: [
+                        {
+                            onyxMethod: 'merge',
+                            key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`,
+                            value: {
+                                [reportActionID]: {
+                                    errors: getMicroSecondOnyxErrorWithTranslationKey('iou.error.other'),
+                                },
+                            },
+                        },
+                    ],
+                },
+                // And the backend returns a non-200 response with type === 'UserNotAMember' and the actionable message
+                response: {
+                    jsonCode: 400,
+                    type: 'UserNotAMember',
+                    message: serverMessage,
+                },
+            };
+
+            // When the updates are applied
+            await OnyxUpdates.apply(failurePayload);
+            await waitForBatchedUpdates();
+
+            // Then the report action's errors should contain the server message, not the generic translated string
+            const reportActions = (await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`)) as Record<string, {errors?: Record<string, string>}>;
+            const errors = reportActions?.[reportActionID]?.errors ?? {};
+            expect(Object.values(errors)).toEqual([serverMessage]);
+        });
+
+        it('replaces the generic error on the report (MERGE_COLLECTION shape from submitMoneyRequestOnSearch)', async () => {
+            const reportID = NumberUtils.rand64();
+
+            const failurePayload: OnyxUpdatesFromServer<typeof ONYXKEYS.COLLECTION.REPORT> = {
+                type: CONST.ONYX_UPDATE_TYPES.HTTPS,
+                previousUpdateID: 0,
+                lastUpdateID: 1,
+                request: {
+                    command: WRITE_COMMANDS.SUBMIT_REPORT,
+                    data: {reportID},
+                    failureData: [
+                        {
+                            onyxMethod: 'mergecollection',
+                            key: ONYXKEYS.COLLECTION.REPORT,
+                            value: {
+                                [`${ONYXKEYS.COLLECTION.REPORT}${reportID}`]: {
+                                    errors: getMicroSecondOnyxErrorWithTranslationKey('common.genericErrorMessage'),
+                                },
+                            },
+                        },
+                    ],
+                },
+                response: {
+                    jsonCode: 400,
+                    type: 'UserNotAMember',
+                    message: serverMessage,
+                },
+            };
+
+            await OnyxUpdates.apply(failurePayload);
+            await waitForBatchedUpdates();
+
+            const report = (await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT}${reportID}`)) as {errors?: Record<string, string>};
+            const errors = report?.errors ?? {};
+            expect(Object.values(errors)).toEqual([serverMessage]);
+        });
+
+        it('leaves the generic error in place when response.type is not in the allowlist', async () => {
+            const reportID = NumberUtils.rand64();
+            const reportActionID = NumberUtils.rand64();
+            const prebakedError = getMicroSecondOnyxErrorWithTranslationKey('iou.error.other');
+
+            const failurePayload: OnyxUpdatesFromServer<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS> = {
+                type: CONST.ONYX_UPDATE_TYPES.HTTPS,
+                previousUpdateID: 0,
+                lastUpdateID: 1,
+                request: {
+                    command: WRITE_COMMANDS.SUBMIT_REPORT,
+                    data: {reportID, reportActionID},
+                    failureData: [
+                        {
+                            onyxMethod: 'merge',
+                            key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`,
+                            value: {
+                                [reportActionID]: {errors: prebakedError},
+                            },
+                        },
+                    ],
+                },
+                response: {
+                    jsonCode: 500,
+                    type: 'SomeOtherInternalError',
+                    message: 'NullPointerException at line 42',
+                },
+            };
+
+            await OnyxUpdates.apply(failurePayload);
+            await waitForBatchedUpdates();
+
+            const reportActions = (await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`)) as Record<string, {errors?: Record<string, string>}>;
+            // The pre-baked translated error survives; the raw exception text does NOT leak to UI.
+            const errors = reportActions?.[reportActionID]?.errors ?? {};
+            expect(Object.values(errors)).toEqual(Object.values(prebakedError));
+        });
     });
 });
 

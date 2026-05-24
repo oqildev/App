@@ -2,6 +2,7 @@ import type {OnyxKey, OnyxUpdate} from 'react-native-onyx';
 import Onyx from 'react-native-onyx';
 import type {Merge} from 'type-fest';
 import {SIDE_EFFECT_REQUEST_COMMANDS, WRITE_COMMANDS} from '@libs/API/types';
+import {getMicroSecondOnyxErrorWithMessage} from '@libs/ErrorUtils';
 import Log from '@libs/Log';
 import PusherUtils from '@libs/PusherUtils';
 import {trackExpenseApiError} from '@libs/telemetry/trackExpenseCreationError';
@@ -11,6 +12,57 @@ import type {AnyOnyxUpdatesFromServer, OnyxUpdateEvent, OnyxUpdatesFromServer, R
 import type Response from '@src/types/onyx/Response';
 import {isEmptyObject} from '@src/types/utils/EmptyObject';
 import {queueOnyxUpdates} from './QueuedOnyxUpdates';
+
+// Backend error types whose `response.message` is safe and useful to surface verbatim to the UI.
+// Without this allowlist, internal exceptions could leak into user-facing error text.
+const PASS_THROUGH_RESPONSE_TYPES = new Set(['UserNotAMember']);
+
+function shouldPassThroughResponseMessage<TKey extends OnyxKey>(request: Request<TKey>, response: Response<TKey>): boolean {
+    if (request.command !== WRITE_COMMANDS.SUBMIT_REPORT) {
+        return false;
+    }
+    if (!response.message || !response.type) {
+        return false;
+    }
+    return PASS_THROUGH_RESPONSE_TYPES.has(response.type);
+}
+
+/**
+ * Walks failureData entries for SUBMIT_REPORT and swaps any pre-baked `errors` field
+ * with the server-provided message. Handles both shapes used today:
+ *   - ReportWorkflow.submitReport: MERGE on REPORT_ACTIONS, value = {[reportActionID]: {errors}}
+ *   - Search.submitMoneyRequestOnSearch: MERGE_COLLECTION on REPORT, value = {[reportKey]: {errors}}
+ * Unmatched entries pass through unchanged.
+ */
+function transformFailureDataWithServerMessage<TKey extends OnyxKey>(failureData: Array<OnyxUpdate<TKey>>, serverMessage: string): Array<OnyxUpdate<TKey>> {
+    const serverError = getMicroSecondOnyxErrorWithMessage(serverMessage);
+
+    const replaceErrorsAtDepth = (value: unknown, depth: number): unknown => {
+        if (depth > 2 || !value || typeof value !== 'object' || Array.isArray(value)) {
+            return value;
+        }
+        const record = value as Record<string, unknown>;
+        if ('errors' in record) {
+            return {...record, errors: serverError};
+        }
+        let changed = false;
+        const next: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(record)) {
+            const replaced = replaceErrorsAtDepth(v, depth + 1);
+            if (replaced !== v) {
+                changed = true;
+            }
+            next[k] = replaced;
+        }
+        return changed ? next : record;
+    };
+
+    return failureData.map((update) => {
+        const nextValue = replaceErrorsAtDepth(update.value, 0);
+        // Cast preserves the OnyxMethod-discriminated union — we only replace the inner `errors` slot, not the method/key.
+        return (nextValue === update.value ? update : {...update, value: nextValue}) as OnyxUpdate<TKey>;
+    });
+}
 
 // This key needs to be separate from ONYXKEYS.ONYX_UPDATES_FROM_SERVER so that it can be updated without triggering the callback when the server IDs are updated. If that
 // callback were triggered it would lead to duplicate processing of server updates.
@@ -62,7 +114,11 @@ function applyHTTPSOnyxUpdates<TKey extends OnyxKey>(request: Request<TKey>, res
                     requestData: request.data,
                 });
 
-                return updateHandler(request.failureData);
+                const failureData = shouldPassThroughResponseMessage(request, response)
+                    ? transformFailureDataWithServerMessage(request.failureData, response.message ?? '')
+                    : request.failureData;
+
+                return updateHandler(failureData);
             }
             return Promise.resolve();
         })
