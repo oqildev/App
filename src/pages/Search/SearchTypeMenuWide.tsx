@@ -4,7 +4,7 @@ import {View} from 'react-native';
 // eslint-disable-next-line no-restricted-imports
 import type {ScrollView as RNScrollView, ScrollViewProps} from 'react-native';
 import Animated, {useAnimatedStyle} from 'react-native-reanimated';
-import {collapseProgress, peekProgress} from '@components/Navigation/SearchSidebarCollapseStore';
+import {collapseProgress, peekProgress, useSearchSidebarCollapse} from '@components/Navigation/SearchSidebarCollapseStore';
 import {ScrollOffsetContext} from '@components/ScrollOffsetContextProvider';
 import ScrollView from '@components/ScrollView';
 import {useSearchActionsContext} from '@components/Search/SearchContext';
@@ -101,6 +101,7 @@ function SearchTypeMenuWide({queryJSON}: SearchTypeMenuProps) {
         'CheckCircle',
     ]);
     const {clearSelectedTransactions} = useSearchActionsContext();
+    const {isVisuallyCollapsed} = useSearchSidebarCollapse();
     const [isSearchDataLoaded, isSearchDataLoadedResult] = useOnyx(ONYXKEYS.IS_SEARCH_PAGE_DATA_LOADED);
     const [reportCounts = CONST.EMPTY_TODOS_REPORT_COUNTS] = useOnyx(ONYXKEYS.DERIVED.TODOS, {selector: todosReportCountsSelector});
 
@@ -142,34 +143,43 @@ function SearchTypeMenuWide({queryJSON}: SearchTypeMenuProps) {
 
     const areSuggestedSearchesLoading = !isOffline && !isSearchDataLoaded && !isLoadingOnyxValue(isSearchDataLoadedResult);
 
-    const renderSection = (section: SearchTypeMenuSection, sectionIndex: number) => (
-        <View key={section.translationPath}>
-            <SectionHeader title={translate(section.translationPath)} />
+    const renderSection = (section: SearchTypeMenuSection, sectionIndex: number) => {
+        const isSavedSearchSection = section.translationPath === 'search.savedSearchesMenuItemTitle';
+        // SavedSearchList renders full MenuItemList rows that have no collapsed-mode rendering,
+        // so they'd overflow / clip behind the 76px rail. Skip the entire section in that case
+        // — users can hover-peek or expand to access saved searches.
+        if (isSavedSearchSection && isVisuallyCollapsed) {
+            return null;
+        }
+        return (
+            <View key={section.translationPath}>
+                <SectionHeader title={translate(section.translationPath)} />
 
-            {section.translationPath === 'search.savedSearchesMenuItemTitle' ? (
-                <SavedSearchList hash={hash} />
-            ) : (
-                <>
-                    {section.menuItems.map((item, itemIndex) => {
-                        const flattenedIndex = (sectionStartIndices?.at(sectionIndex) ?? 0) + itemIndex;
-                        const focused = activeItemIndex === flattenedIndex;
-                        const icon = typeof item.icon === 'string' ? expensifyIcons[item.icon] : item.icon;
+                {isSavedSearchSection ? (
+                    <SavedSearchList hash={hash} />
+                ) : (
+                    <>
+                        {section.menuItems.map((item, itemIndex) => {
+                            const flattenedIndex = (sectionStartIndices?.at(sectionIndex) ?? 0) + itemIndex;
+                            const focused = activeItemIndex === flattenedIndex;
+                            const icon = typeof item.icon === 'string' ? expensifyIcons[item.icon] : item.icon;
 
-                        return (
-                            <SearchTypeMenuItem
-                                key={item.key}
-                                title={translate(item.translationPath)}
-                                icon={icon}
-                                badgeText={getItemBadgeText(item.key, reportCounts)}
-                                focused={focused}
-                                onPress={() => handleTypeMenuItemPress(item.searchQuery)}
-                            />
-                        );
-                    })}
-                </>
-            )}
-        </View>
-    );
+                            return (
+                                <SearchTypeMenuItem
+                                    key={item.key}
+                                    title={translate(item.translationPath)}
+                                    icon={icon}
+                                    badgeText={getItemBadgeText(item.key, reportCounts)}
+                                    focused={focused}
+                                    onPress={() => handleTypeMenuItemPress(item.searchQuery)}
+                                />
+                            );
+                        })}
+                    </>
+                )}
+            </View>
+        );
+    };
 
     return (
         <ScrollView
