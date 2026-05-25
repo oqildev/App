@@ -11,9 +11,12 @@ type WorkspaceTargetScreen = typeof SCREENS.WORKSPACE.PROFILE | typeof SCREENS.W
  * state key, so the RHP stays in place; once the caller dismisses it, the modal animation reveals
  * the new workspace page directly instead of briefly exposing WORKSPACES_LIST underneath.
  *
- * `initial: false` matters when WORKSPACE_NAVIGATOR has never been mounted (e.g. workspace created
- * from Inbox/Reports): it tells the stack router not to seed the stack with WORKSPACES_LIST before
- * pushing WORKSPACE_SPLIT_NAVIGATOR.
+ * The initial WORKSPACES_LIST seed is kept (default behavior) so the pre-mounted state matches
+ * what `getAdaptedStateFromPath` produces when the same workspace URL is later re-parsed by
+ * `revealRouteBeforeDismissingModal`. If we omitted the seed (`initial: false`), the sidebar-prepend
+ * branch in `handleReplaceFullscreenUnderRHP` would see different first routes between existing
+ * and new state and prepend the pre-mounted split navigator, producing a corrupted 3-deep stack
+ * (`[WORKSPACE_SPLIT_NAVIGATOR, WORKSPACES_LIST, WORKSPACE_SPLIT_NAVIGATOR]`).
  */
 function pushNewlyCreatedWorkspaceUnderActiveModal(targetScreen: WorkspaceTargetScreen, policyID: string) {
     const rootState = navigationRef.getRootState();
@@ -27,7 +30,6 @@ function pushNewlyCreatedWorkspaceUnderActiveModal(targetScreen: WorkspaceTarget
         ...CommonActions.navigate({
             name: NAVIGATORS.WORKSPACE_NAVIGATOR,
             params: {
-                initial: false,
                 screen: NAVIGATORS.WORKSPACE_SPLIT_NAVIGATOR,
                 params: {
                     screen: targetScreen,
