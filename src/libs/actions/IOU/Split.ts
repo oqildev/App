@@ -1908,6 +1908,7 @@ function createDistanceRequest(distanceRequestInformation: CreateDistanceRequest
         odometerStart,
         odometerEnd,
         isFromGlobalCreate,
+        isFromQuickAction,
         gpsCoordinates,
     } = transactionParams;
 
@@ -2161,6 +2162,7 @@ function createDistanceRequest(distanceRequestInformation: CreateDistanceRequest
             isFromGlobalCreate,
             transactionID: parameters.transactionID,
             shouldAddPendingNewTransactionIDs: navigationActiveReportID === parameters.chatReportID,
+            isFromQuickAction,
         });
     }
 

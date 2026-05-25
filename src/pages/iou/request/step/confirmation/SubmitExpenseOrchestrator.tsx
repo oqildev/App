@@ -82,6 +82,13 @@ type SubmitExpenseOrchestratorProps = {
     /** Persisted flag on the transaction: flow originated from the floating action button. */
     isFromFloatingActionButtonOnTransaction: boolean;
 
+    /**
+     * Persisted flag on the transaction: flow originated from the Quick Action Button (QAB).
+     * QAB carries a known destination report so submit-time navigation should reveal that
+     * report instead of routing to Search. See issue #91126.
+     */
+    isFromQuickActionOnTransaction: boolean;
+
     /** Render prop receiving onConfirm and isConfirming. */
     children: (props: SubmitExpenseOrchestratorRenderProps) => React.ReactNode;
 };
@@ -120,6 +127,7 @@ function SubmitExpenseOrchestrator({
     receiptFiles,
     isFromGlobalCreateOnTransaction,
     isFromFloatingActionButtonOnTransaction,
+    isFromQuickActionOnTransaction,
     children,
 }: SubmitExpenseOrchestratorProps) {
     const [isConfirming, setIsConfirming] = useState(false);
@@ -175,7 +183,10 @@ function SubmitExpenseOrchestrator({
             isReportPreInserted: isPreInserted && Navigation.getPreInsertedFullscreenRouteName() === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR,
             isFromGlobalCreate,
             canDismissFromSearch,
-            navigatesToDestinationReport: iouType === CONST.IOU.TYPE.SPLIT || iouType === CONST.IOU.TYPE.TRACK,
+            // QAB carries a known destination report even for SUBMIT/PAY iouType — without this,
+            // SUBMIT QAB falls through to DEFAULT and the legacy navigateAfterExpenseCreate routes
+            // the user to Search. See issue #91126.
+            navigatesToDestinationReport: iouType === CONST.IOU.TYPE.SPLIT || iouType === CONST.IOU.TYPE.TRACK || (isFromQuickActionOnTransaction && !!destinationReportID),
             destinationReportID,
             isReportInRHP: isReportOpenInRHP(rootState),
             isReportTopmostSplit: isReportTopmostSplitNavigator(),

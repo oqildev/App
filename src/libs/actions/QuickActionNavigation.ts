@@ -45,19 +45,24 @@ function navigateToQuickAction(params: NavigateToQuickActionParams) {
     const reportID = isValidReport && quickAction?.chatReportID ? quickAction?.chatReportID : generateReportID();
     const requestType = getQuickActionRequestType(quickAction?.action, lastDistanceExpenseType);
 
+    // QAB carries a known destination report (when isValidReport is true). We propagate this
+    // as a separate signal so post-submit navigation can reveal that report instead of
+    // routing the user to Search on the assumption that no destination is known.
+    const isFromQuickAction = isValidReport;
+
     switch (quickAction?.action) {
         case CONST.QUICK_ACTIONS.REQUEST_MANUAL:
         case CONST.QUICK_ACTIONS.REQUEST_SCAN:
         case CONST.QUICK_ACTIONS.PER_DIEM:
-            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         case CONST.QUICK_ACTIONS.SPLIT_MANUAL:
         case CONST.QUICK_ACTIONS.SPLIT_SCAN:
         case CONST.QUICK_ACTIONS.SPLIT_DISTANCE:
-            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SPLIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SPLIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         case CONST.QUICK_ACTIONS.SEND_MONEY:
-            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.PAY, reportID, draftTransactionIDs, undefined, true, undefined, isFromFloatingActionButton), false);
+            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.PAY, reportID, draftTransactionIDs, undefined, true, undefined, isFromFloatingActionButton, isFromQuickAction), false);
             break;
         case CONST.QUICK_ACTIONS.ASSIGN_TASK:
             selectOption(() => startOutCreateTaskQuickAction(currentUserAccountID, isValidReport ? reportID : '', targetAccountPersonalDetails), false);
@@ -65,16 +70,16 @@ function navigateToQuickAction(params: NavigateToQuickActionParams) {
         case CONST.QUICK_ACTIONS.TRACK_MANUAL:
         case CONST.QUICK_ACTIONS.TRACK_SCAN:
         case CONST.QUICK_ACTIONS.TRACK_PER_DIEM:
-            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.TRACK, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.TRACK, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         case CONST.QUICK_ACTIONS.REQUEST_DISTANCE:
-            selectOption(() => startDistanceRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startDistanceRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         case CONST.QUICK_ACTIONS.TRACK_DISTANCE:
-            selectOption(() => startDistanceRequest(CONST.IOU.TYPE.TRACK, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startDistanceRequest(CONST.IOU.TYPE.TRACK, reportID, draftTransactionIDs, requestType, true, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         case CONST.QUICK_ACTIONS.REQUEST_TIME:
-            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, false, undefined, isFromFloatingActionButton), true);
+            selectOption(() => startMoneyRequest(CONST.IOU.TYPE.SUBMIT, reportID, draftTransactionIDs, requestType, false, undefined, isFromFloatingActionButton, isFromQuickAction), true);
             break;
         default:
     }

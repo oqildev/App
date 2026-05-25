@@ -585,6 +585,14 @@ type Transaction = OnyxCommon.OnyxValueWithOfflineFeedback<
         /** Whether the transaction was created from the FAB, including Global create button, FloatingCameraButton, QuickAction,... */
         isFromFloatingActionButton?: boolean;
 
+        /**
+         * Whether the transaction was created via the Quick Action Button. Differs from
+         * isFromFloatingActionButton in that QAB carries a known destination report
+         * (quickAction.chatReportID), so post-submit navigation should reveal that report
+         * instead of falling back to Search.
+         */
+        isFromQuickAction?: boolean;
+
         /** The transaction tax rate */
         taxRate?: string | undefined;
 

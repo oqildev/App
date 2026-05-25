@@ -1025,6 +1025,7 @@ function startMoneyRequest(
     skipConfirmation = false,
     backToReport?: string,
     isFromFloatingActionButton?: boolean,
+    isFromQuickAction?: boolean,
 ) {
     const sourceRoute = Navigation.getActiveRoute();
     startSpan(CONST.TELEMETRY.SPAN_OPEN_CREATE_EXPENSE, {
@@ -1038,8 +1039,11 @@ function startMoneyRequest(
         },
     });
     clearMoneyRequest(CONST.IOU.OPTIMISTIC_TRANSACTION_ID, draftTransactionIDs, skipConfirmation);
-    if (isFromFloatingActionButton) {
-        Onyx.set(`${ONYXKEYS.COLLECTION.TRANSACTION_DRAFT}${CONST.IOU.OPTIMISTIC_TRANSACTION_ID}`, {isFromFloatingActionButton});
+    if (isFromFloatingActionButton || isFromQuickAction) {
+        Onyx.set(`${ONYXKEYS.COLLECTION.TRANSACTION_DRAFT}${CONST.IOU.OPTIMISTIC_TRANSACTION_ID}`, {
+            ...(isFromFloatingActionButton ? {isFromFloatingActionButton} : {}),
+            ...(isFromQuickAction ? {isFromQuickAction} : {}),
+        });
     }
     switch (requestType) {
         case CONST.IOU.REQUEST_TYPE.MANUAL:
@@ -1067,10 +1071,14 @@ function startDistanceRequest(
     skipConfirmation = false,
     backToReport?: string,
     isFromFloatingActionButton?: boolean,
+    isFromQuickAction?: boolean,
 ) {
     clearMoneyRequest(CONST.IOU.OPTIMISTIC_TRANSACTION_ID, draftTransactionIDs, skipConfirmation);
-    if (isFromFloatingActionButton) {
-        Onyx.set(`${ONYXKEYS.COLLECTION.TRANSACTION_DRAFT}${CONST.IOU.OPTIMISTIC_TRANSACTION_ID}`, {isFromFloatingActionButton});
+    if (isFromFloatingActionButton || isFromQuickAction) {
+        Onyx.set(`${ONYXKEYS.COLLECTION.TRANSACTION_DRAFT}${CONST.IOU.OPTIMISTIC_TRANSACTION_ID}`, {
+            ...(isFromFloatingActionButton ? {isFromFloatingActionButton} : {}),
+            ...(isFromQuickAction ? {isFromQuickAction} : {}),
+        });
     }
     switch (requestType) {
         case CONST.IOU.REQUEST_TYPE.DISTANCE_MAP:

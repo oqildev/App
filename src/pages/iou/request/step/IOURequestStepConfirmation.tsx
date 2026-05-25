@@ -391,6 +391,11 @@ function IOURequestStepConfirmation({
 
     const isFromGlobalCreate = transaction?.isFromGlobalCreate === true || transaction?.isFromFloatingActionButton === true;
 
+    // QAB carries a known destination chat report (quickAction.chatReportID). Even though
+    // isFromGlobalCreate is also true for QAB, the destination is known and the user expects
+    // to land on that chat — not Search — after submitting. See issue #91126.
+    const isFromQuickAction = transaction?.isFromQuickAction === true;
+
     useFetchRoute(transaction, transaction?.comment?.waypoints, action, shouldUseTransactionDraft(action, iouType) ? CONST.TRANSACTION.STATE.DRAFT : CONST.TRANSACTION.STATE.CURRENT);
 
     const policyExpenseChatPolicyID =
@@ -460,9 +465,17 @@ function IOURequestStepConfirmation({
         // Search pre-insert: global create flows that navigate to Search after submit.
         // Also pre-insert when Search is already on top but showing a different type
         // (e.g. Invoice tab when submitting an Expense) so the correct tab is revealed on dismiss.
+        // QAB is excluded: it carries a known destination report, so we want the report
+        // pre-insert path below to win instead. See issue #91126.
         const searchType = iouType === CONST.IOU.TYPE.INVOICE ? CONST.SEARCH.DATA_TYPES.INVOICE : CONST.SEARCH.DATA_TYPES.EXPENSE;
         const isSearchOnTopWithDifferentType = isSearchTopmostFullScreenRoute() && getCurrentSearchQueryJSON()?.type !== searchType;
-        const shouldPreInsertSearch = isFromGlobalCreate && canPreInsertSearch && !isReportTopmostSplitNavigator() && (!isSearchTopmostFullScreenRoute() || isSearchOnTopWithDifferentType);
+        const hasKnownDestinationReport = isFromQuickAction && !!destinationReportID;
+        const shouldPreInsertSearch =
+            isFromGlobalCreate &&
+            canPreInsertSearch &&
+            !hasKnownDestinationReport &&
+            !isReportTopmostSplitNavigator() &&
+            (!isSearchTopmostFullScreenRoute() || isSearchOnTopWithDifferentType);
 
         // Report pre-insert: dismiss modal flows that open an existing report after submit.
         // Skip when the destination is already the topmost fullscreen report to avoid
@@ -471,7 +484,8 @@ function IOURequestStepConfirmation({
         // Only eligible when search pre-insert didn't win, and the flow ends at a report (not Search).
         // When Search is the topmost fullscreen and there's no report context (e.g. QAB from Spend tab),
         // pre-inserting a report is wrong - the user should stay on Search after submission.
-        const canUseReportPreInsert = !shouldPreInsertSearch && (isReportTopmostSplitNavigator() || (!isFromGlobalCreate && !isSearchTopmostFullScreenRoute()));
+        // QAB with a known destination report is always eligible — that's the whole point of QAB.
+        const canUseReportPreInsert = !shouldPreInsertSearch && (isReportTopmostSplitNavigator() || hasKnownDestinationReport || (!isFromGlobalCreate && !isSearchTopmostFullScreenRoute()));
 
         // RHP has its own dismiss handler; pre-inserting under it would break the stack.
         const isOutsideRHP = !isReportOpenInRHP(navigationRef.getRootState());
@@ -849,6 +863,7 @@ function IOURequestStepConfirmation({
                         receiptFiles={receiptFiles}
                         isFromGlobalCreateOnTransaction={!!transaction?.isFromGlobalCreate}
                         isFromFloatingActionButtonOnTransaction={!!transaction?.isFromFloatingActionButton}
+                        isFromQuickActionOnTransaction={!!transaction?.isFromQuickAction}
                     >
                         {({onConfirm, isConfirming}) => (
                             <MoneyRequestConfirmationList

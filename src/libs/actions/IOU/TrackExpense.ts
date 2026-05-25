@@ -1639,6 +1639,7 @@ function requestMoney(requestMoneyInformation: RequestMoneyInformation): {iouRep
         rate,
         unit,
         isFromGlobalCreate = false,
+        isFromQuickAction = false,
     } = transactionParams;
 
     const testDriveCommentReportActionID = isTestDrive ? NumberUtils.rand64() : undefined;
@@ -1893,6 +1894,7 @@ function requestMoney(requestMoneyInformation: RequestMoneyInformation): {iouRep
                 transactionID: transaction.transactionID,
                 isFromGlobalCreate,
                 shouldAddPendingNewTransactionIDs: navigationReportID === chatReport.reportID,
+                isFromQuickAction,
             });
         }
     }
@@ -2364,6 +2366,7 @@ function trackExpense(params: CreateTrackExpenseParams) {
         odometerStart,
         odometerEnd,
         isFromGlobalCreate = false,
+        isFromQuickAction = false,
         gpsCoordinates,
     } = transactionData;
     const isMoneyRequestReport = isMoneyRequestReportReportUtils(report);
@@ -2710,6 +2713,7 @@ function trackExpense(params: CreateTrackExpenseParams) {
                 transactionID: transaction?.transactionID,
                 isFromGlobalCreate,
                 shouldAddPendingNewTransactionIDs: action === CONST.IOU.ACTION.CATEGORIZE || action === CONST.IOU.ACTION.SHARE,
+                isFromQuickAction,
             });
         }
     }

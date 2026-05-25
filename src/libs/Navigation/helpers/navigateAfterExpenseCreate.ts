@@ -19,6 +19,12 @@ type NavigateAfterExpenseCreateParams = {
     isInvoice?: boolean;
     hasMultipleTransactions: boolean;
     shouldAddPendingNewTransactionIDs?: boolean;
+    /**
+     * Set when the submission originated from the Quick Action Button (QAB). QAB always
+     * has a known destination report; navigating to Search would discard that context.
+     * See issue #91126.
+     */
+    isFromQuickAction?: boolean;
 };
 
 /**
@@ -27,6 +33,7 @@ type NavigateAfterExpenseCreateParams = {
  * If the expense is created from the global create button then:
  * - If it is created on the inbox tab, it will open the chat report containing that expense.
  * - If it is created elsewhere, it will navigate to Reports > Expense and highlight the newly created expense.
+ * QAB submissions always open the destination chat (never Search) because QAB carries a known target.
  */
 function navigateAfterExpenseCreate({
     activeReportID,
@@ -35,13 +42,16 @@ function navigateAfterExpenseCreate({
     isInvoice,
     hasMultipleTransactions,
     shouldAddPendingNewTransactionIDs = false,
+    isFromQuickAction = false,
 }: NavigateAfterExpenseCreateParams) {
     const isUserOnInbox = isReportTopmostSplitNavigator();
 
     // If the expense is not created from global create or is currently on the inbox tab,
     // we just need to dismiss the money request flow screens
-    // and open the report chat containing the IOU report
-    if (!isFromGlobalCreate || isUserOnInbox || !transactionID) {
+    // and open the report chat containing the IOU report.
+    // QAB submissions with a known activeReportID are also routed here so the user lands
+    // on the destination chat instead of Search (#91126).
+    if (!isFromGlobalCreate || isUserOnInbox || !transactionID || (isFromQuickAction && !!activeReportID)) {
         dismissModalAndOpenReportInInboxTab(activeReportID, isInvoice, hasMultipleTransactions);
         if (shouldAddPendingNewTransactionIDs) {
             addPendingNewTransactionIDs(activeReportID, transactionID);

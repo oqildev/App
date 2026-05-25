@@ -14,6 +14,7 @@ type BaseTransactionParams = {
     reimbursable?: boolean;
     customUnitRateID?: string;
     isFromGlobalCreate?: boolean;
+    isFromQuickAction?: boolean;
 };
 
 export default BaseTransactionParams;

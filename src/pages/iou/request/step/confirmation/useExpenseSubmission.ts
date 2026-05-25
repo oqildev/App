@@ -419,6 +419,7 @@ function useExpenseSubmission(params: UseExpenseSubmissionParams) {
                     reimbursable: transaction.reimbursable,
                     attendees: transaction.comment?.attendees,
                     isFromGlobalCreate: transaction.isFromFloatingActionButton ?? transaction.isFromGlobalCreate,
+                    isFromQuickAction: transaction.isFromQuickAction,
                 },
                 currentUserAccountIDParam: currentUserPersonalDetails.accountID,
                 currentUserEmailParam: currentUserPersonalDetails.login ?? '',
@@ -467,6 +468,7 @@ function useExpenseSubmission(params: UseExpenseSubmissionParams) {
                     reimbursable: transaction.reimbursable,
                     attendees: transaction.comment?.attendees,
                     isFromGlobalCreate: transaction.isFromFloatingActionButton ?? transaction.isFromGlobalCreate,
+                    isFromQuickAction: transaction.isFromQuickAction,
                 },
                 isASAPSubmitBetaEnabled,
                 currentUserAccountIDParam: currentUserPersonalDetails.accountID,
@@ -487,6 +489,7 @@ function useExpenseSubmission(params: UseExpenseSubmissionParams) {
                     isFromGlobalCreate: transaction.isFromFloatingActionButton ?? transaction.isFromGlobalCreate,
                     hasMultipleTransactions: reportTransactions.length > 0,
                     shouldAddPendingNewTransactionIDs: activeReportID === chatReportID,
+                    isFromQuickAction: transaction.isFromQuickAction,
                 });
             }
         }
