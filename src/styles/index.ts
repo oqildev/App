@@ -1658,6 +1658,7 @@ const staticStyles = (theme: ThemeColors) =>
             justifyContent: 'space-between',
             borderRightWidth: 1,
             borderColor: theme.border,
+            overflow: 'hidden',
         },
 
         // Sidebar Styles

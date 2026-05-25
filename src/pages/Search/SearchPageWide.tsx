@@ -2,7 +2,9 @@ import React, {useCallback, useContext, useMemo, useRef} from 'react';
 import type {NativeScrollEvent, NativeSyntheticEvent} from 'react-native';
 import {View} from 'react-native';
 import type {OnyxEntry} from 'react-native-onyx';
+import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import FullPageNotFoundView from '@components/BlockingViews/FullPageNotFoundView';
+import {collapseProgress} from '@components/Navigation/SearchSidebarCollapseStore';
 import ReceiptScanDropZone from '@components/ReceiptScanDropZone';
 import ScreenWrapper from '@components/ScreenWrapper';
 import {ScrollOffsetContext} from '@components/ScrollOffsetContextProvider';
@@ -22,6 +24,7 @@ import type {SearchFullscreenNavigatorParamList} from '@libs/Navigation/types';
 import {buildCannedSearchQuery} from '@libs/SearchQueryUtils';
 import {isSearchDataLoaded} from '@libs/SearchUIUtils';
 import Navigation from '@navigation/Navigation';
+import variables from '@styles/variables';
 import ROUTES from '@src/ROUTES';
 import type SCREENS from '@src/SCREENS';
 import type {SearchResults} from '@src/types/onyx';
@@ -83,10 +86,17 @@ function SearchPageWide({
 
     const handleOnBackButtonPress = () => Navigation.goBack(ROUTES.SEARCH_ROOT.getRoute({query: buildCannedSearchQuery()}));
 
+    const splitContainerAnimatedStyle = useAnimatedStyle(() => {
+        const progress = collapseProgress.get();
+        return {
+            marginLeft: variables.sideBarWithLHBWidth + (variables.searchSidebarCollapsedWidth - variables.sideBarWithLHBWidth) * progress,
+        };
+    });
+
     return (
-        <View
+        <Animated.View
             ref={receiptDropTargetRef}
-            style={styles.searchSplitContainer}
+            style={[styles.searchSplitContainer, splitContainerAnimatedStyle]}
         >
             <ScreenWrapper
                 testID="Search"
@@ -148,7 +158,7 @@ function SearchPageWide({
                 </FullPageNotFoundView>
             </ScreenWrapper>
             {!!queryJSON && <ReceiptScanDropZone targetRef={receiptDropTargetRef} />}
-        </View>
+        </Animated.View>
     );
 }
 

@@ -3,6 +3,8 @@ import React, {useCallback, useContext, useLayoutEffect, useRef} from 'react';
 import {View} from 'react-native';
 // eslint-disable-next-line no-restricted-imports
 import type {ScrollView as RNScrollView, ScrollViewProps} from 'react-native';
+import Animated, {useAnimatedStyle} from 'react-native-reanimated';
+import {collapseProgress, peekProgress} from '@components/Navigation/SearchSidebarCollapseStore';
 import {ScrollOffsetContext} from '@components/ScrollOffsetContextProvider';
 import ScrollView from '@components/ScrollView';
 import {useSearchActionsContext} from '@components/Search/SearchContext';
@@ -31,6 +33,48 @@ import SuggestedSearchSkeleton from './SuggestedSearchSkeleton';
 type SearchTypeMenuProps = {
     queryJSON: SearchQueryJSON | undefined;
 };
+
+function SectionHeader({title}: {title: string}) {
+    const styles = useThemeStyles();
+
+    // Label fades + slides out as the sidebar collapses; opacite is mirrored on the divider.
+    const labelAnimatedStyle = useAnimatedStyle(() => {
+        const visualExpansion = 1 - collapseProgress.get() * (1 - peekProgress.get());
+        return {
+            opacity: visualExpansion,
+            transform: [{translateX: -8 * (1 - visualExpansion)}],
+        };
+    });
+
+    const dividerAnimatedStyle = useAnimatedStyle(() => {
+        const visualExpansion = 1 - collapseProgress.get() * (1 - peekProgress.get());
+        return {
+            opacity: 1 - visualExpansion,
+        };
+    });
+
+    return (
+        <View style={{position: 'relative'}}>
+            <Animated.View style={labelAnimatedStyle}>
+                <Text
+                    style={styles.sectionTitle}
+                    accessibilityRole={CONST.ROLE.HEADER}
+                    numberOfLines={1}
+                >
+                    {title}
+                </Text>
+            </Animated.View>
+            <Animated.View
+                style={[{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 8}, dividerAnimatedStyle]}
+                pointerEvents="none"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+            >
+                <View style={styles.borderTop} />
+            </Animated.View>
+        </View>
+    );
+}
 
 function SearchTypeMenuWide({queryJSON}: SearchTypeMenuProps) {
     const {hash, similarSearchHash, sortBy, sortOrder, type} = queryJSON ?? {};
@@ -100,12 +144,7 @@ function SearchTypeMenuWide({queryJSON}: SearchTypeMenuProps) {
 
     const renderSection = (section: SearchTypeMenuSection, sectionIndex: number) => (
         <View key={section.translationPath}>
-            <Text
-                style={styles.sectionTitle}
-                accessibilityRole={CONST.ROLE.HEADER}
-            >
-                {translate(section.translationPath)}
-            </Text>
+            <SectionHeader title={translate(section.translationPath)} />
 
             {section.translationPath === 'search.savedSearchesMenuItemTitle' ? (
                 <SavedSearchList hash={hash} />
