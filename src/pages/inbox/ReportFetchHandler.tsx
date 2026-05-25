@@ -257,9 +257,12 @@ function ReportFetchHandler() {
     useEffect(() => {
         // This function is triggered when a user clicks on a link to navigate to a report.
         // For each link click, we retrieve the report data again, even though it may already be cached.
-        // There should be only one openReport execution per page start or navigating
+        // There should be only one openReport execution per page start or navigating.
+        // `reportMetadata?.isOptimisticReport` is included so this effect re-runs once the optimistic
+        // flag clears (e.g. after SEND_INVOICE / SendMoney resolves), letting the guard at the top of
+        // fetchReport pass on the second run and openReport fire exactly once.
         fetchReport();
-    }, [route, isLinkedMessagePageReady, reportActionIDFromRoute]);
+    }, [route, isLinkedMessagePageReady, reportActionIDFromRoute, reportMetadata?.isOptimisticReport]);
 
     useEffect(() => {
         // This function is only triggered when a user is invited to a room after opening the link.

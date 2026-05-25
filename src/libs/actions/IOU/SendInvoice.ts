@@ -415,7 +415,13 @@ function buildOnyxDataForInvoice(
     const errorKey = DateUtils.getMicroseconds();
 
     const failureData: Array<
-        OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT | typeof ONYXKEYS.COLLECTION.TRANSACTION | typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS | typeof ONYXKEYS.COLLECTION.POLICY>
+        OnyxUpdate<
+            | typeof ONYXKEYS.COLLECTION.REPORT
+            | typeof ONYXKEYS.COLLECTION.REPORT_METADATA
+            | typeof ONYXKEYS.COLLECTION.TRANSACTION
+            | typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS
+            | typeof ONYXKEYS.COLLECTION.POLICY
+        >
     > = [
         {
             onyxMethod: Onyx.METHOD.MERGE,
@@ -526,6 +532,19 @@ function buildOnyxDataForInvoice(
                         companyWebsite: null,
                     },
                 },
+            },
+        });
+    }
+
+    if (chat.isNewReport) {
+        // Pair with the optimistic write at the top of this function: if SEND_INVOICE fails we must clear
+        // isOptimisticReport, otherwise ReportFetchHandler's guard keeps skipping openReport forever and
+        // the chat room is stuck behind a skeleton until refresh.
+        failureData.push({
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: `${ONYXKEYS.COLLECTION.REPORT_METADATA}${chat.report?.reportID}`,
+            value: {
+                isOptimisticReport: false,
             },
         });
     }
