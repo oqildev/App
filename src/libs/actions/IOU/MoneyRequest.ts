@@ -863,6 +863,7 @@ type InitMoneyRequestParams = {
     personalPolicy: Pick<Policy, 'id' | 'type' | 'autoReporting' | 'outputCurrency'> | undefined;
     isFromGlobalCreate?: boolean;
     isFromFloatingActionButton?: boolean;
+    isFromQuickAction?: boolean;
     currentIouRequestType?: IOURequestType | undefined;
     newIouRequestType: IOURequestType | undefined;
     report: OnyxEntry<Report>;
@@ -891,6 +892,7 @@ function initMoneyRequest({
     isFromGlobalCreate,
     isTrackDistanceExpense = false,
     isFromFloatingActionButton,
+    isFromQuickAction,
     currentIouRequestType,
     newIouRequestType,
     report,
@@ -918,6 +920,7 @@ function initMoneyRequest({
             reportID,
             isFromGlobalCreate,
             isFromFloatingActionButton,
+            isFromQuickAction,
             created,
             currency,
             transactionID: newTransactionID,
@@ -987,6 +990,7 @@ function initMoneyRequest({
         transactionID: newTransactionID,
         isFromGlobalCreate,
         isFromFloatingActionButton,
+        isFromQuickAction,
         merchant: defaultMerchant,
     };
 

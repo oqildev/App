@@ -204,7 +204,9 @@ function QuickActionMenuItem({reportID}: QuickActionMenuItemProps) {
                     }
 
                     const quickActionReportID = policyChatForActivePolicy?.reportID || reportID;
-                    startMoneyRequest(CONST.IOU.TYPE.SUBMIT, quickActionReportID, draftTransactionIDs, CONST.IOU.REQUEST_TYPE.SCAN, true, undefined, true);
+                    // isFromQuickAction=true: this fallback still represents the QAB intent
+                    // (it lands on the policy chat for active policy). See issue #91126.
+                    startMoneyRequest(CONST.IOU.TYPE.SUBMIT, quickActionReportID, draftTransactionIDs, CONST.IOU.REQUEST_TYPE.SCAN, true, undefined, true, true);
                 })
             }
             shouldCallAfterModalHide={shouldUseNarrowLayout}

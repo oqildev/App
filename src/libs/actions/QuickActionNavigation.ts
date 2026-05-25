@@ -45,10 +45,11 @@ function navigateToQuickAction(params: NavigateToQuickActionParams) {
     const reportID = isValidReport && quickAction?.chatReportID ? quickAction?.chatReportID : generateReportID();
     const requestType = getQuickActionRequestType(quickAction?.action, lastDistanceExpenseType);
 
-    // QAB carries a known destination report (when isValidReport is true). We propagate this
-    // as a separate signal so post-submit navigation can reveal that report instead of
-    // routing the user to Search on the assumption that no destination is known.
-    const isFromQuickAction = isValidReport;
+    // QAB always carries an intent to land on a known destination chat. Set the flag
+    // unconditionally — downstream consumers (orchestrator snapshot, navigateAfterExpenseCreate)
+    // additionally gate on `destinationReportID && isDestinationReportLoaded` so an invalid/
+    // missing destination naturally falls back to the default behavior.
+    const isFromQuickAction = true;
 
     switch (quickAction?.action) {
         case CONST.QUICK_ACTIONS.REQUEST_MANUAL:

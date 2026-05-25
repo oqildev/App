@@ -93,6 +93,7 @@ function useResetIOUType({
             isFromGlobalCreate,
             isTrackDistanceExpense,
             isFromFloatingActionButton: transaction?.isFromFloatingActionButton ?? transaction?.isFromGlobalCreate ?? isFromGlobalCreate,
+            isFromQuickAction: transaction?.isFromQuickAction,
             currentIouRequestType: transaction?.iouRequestType,
             newIouRequestType: newIOUType,
             report,
