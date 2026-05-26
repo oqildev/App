@@ -4,6 +4,8 @@ import React, {useCallback, useEffect, useMemo} from 'react';
 import {InteractionManager, View} from 'react-native';
 import type {TupleToUnion} from 'type-fest';
 import ApprovalWorkflowSection from '@components/ApprovalWorkflowSection';
+import Button from '@components/Button';
+import FormHelpMessage from '@components/FormHelpMessage';
 import Icon from '@components/Icon';
 import getBankIcon from '@components/Icon/BankIcons';
 import type {BankName} from '@components/Icon/BankIconsUtils';
@@ -39,7 +41,7 @@ import {
     setWorkspaceReimbursement,
 } from '@libs/actions/Policy/Policy';
 import {setApprovalWorkflow} from '@libs/actions/Workflow';
-import {isBankAccountPartiallySetup} from '@libs/BankAccountUtils';
+import {getBankAccountStatusDisplay} from '@libs/BankAccountUtils';
 import {getAllCardsForWorkspace, isSmartLimitEnabled as isSmartLimitEnabledUtil} from '@libs/CardUtils';
 import {getLatestErrorField} from '@libs/ErrorUtils';
 import Navigation from '@libs/Navigation/Navigation';
@@ -262,8 +264,7 @@ function WorkspaceWorkflowsPage({policy, route}: WorkspaceWorkflowsPageProps) {
         const bankTitle = addressName.includes(CONST.MASKED_PAN_PREFIX) ? bankName : addressName;
         const bankAccountID = isBankAccountFullySetup ? policy?.achAccount?.bankAccountID : bankAccountConnectedToWorkspace?.methodID;
         const state = isBankAccountFullySetup ? (policy?.achAccount?.state ?? '') : (bankAccountConnectedToWorkspace?.accountData?.state ?? '');
-        const isAccountInSetupState = isBankAccountPartiallySetup(state);
-        const isBusinessBankAccountLocked = state === CONST.BANK_ACCOUNT.STATE.LOCKED;
+        const bankStatus = getBankAccountStatusDisplay(state);
 
         const shouldShowBankAccount = (!!isBankAccountFullySetup || !!bankAccountConnectedToWorkspace) && policy?.reimbursementChoice !== CONST.POLICY.REIMBURSEMENT_CHOICES.REIMBURSEMENT_NO;
 
@@ -273,16 +274,37 @@ function WorkspaceWorkflowsPage({policy, route}: WorkspaceWorkflowsPageProps) {
         const hasApprovalError = !!policy?.errorFields?.approvalMode;
         const hasDelayedSubmissionError = !!(policy?.errorFields?.autoReporting ?? policy?.errorFields?.autoReportingFrequency);
 
-        const getBadgeText = (accountState: string | undefined) => {
-            switch (accountState) {
-                case CONST.BANK_ACCOUNT.STATE.SETUP:
-                    return translate('common.actionRequired');
-                case CONST.BANK_ACCOUNT.STATE.LOCKED:
-                    return translate('common.locked');
-                default:
-                    return undefined;
+        const bankBadgeText = bankStatus.tone === 'default' ? undefined : translate(bankStatus.labelKey);
+        const isBankBadgeError = bankStatus.tone === 'error';
+        const isBankBadgeSuccess = bankStatus.tone === 'success' || bankStatus.tone === 'warning';
+        const shouldShowBankBadgeIcon = bankStatus.tone === 'warning' || bankStatus.tone === 'error';
+        // Verifying state must not surface an RBR even if a stale reimburser errorField is present.
+        const shouldShowBankRBR = hasReimburserError && state !== CONST.BANK_ACCOUNT.STATE.VERIFYING && state !== CONST.BANK_ACCOUNT.STATE.VALIDATING;
+
+        const onBankStatusCtaPress = () => {
+            if (bankStatus.actionKey === 'unlock' && bankAccountID && isUserReimburser) {
+                pressLockedBankAccount(bankAccountID, translate, conciergeReportID ?? undefined);
+                navigateToConciergeChat(conciergeReportID ?? undefined, introSelected, currentUserAccountID, isSelfTourViewed, betas);
+                return;
             }
+            if (bankStatus.actionKey === 'unlock' && bankAccountID && !isUserReimburser && hasValidExistingAccounts && !shouldShowContinueModal) {
+                Navigation.navigate(ROUTES.BANK_ACCOUNT_CONNECT_EXISTING_BUSINESS_BANK_ACCOUNT.getRoute(route.params.policyID));
+                return;
+            }
+            navigateToBankAccountRoute({policyID: route.params.policyID, backTo: ROUTES.WORKSPACE_WORKFLOWS.getRoute(route.params.policyID)});
         };
+
+        const bankStatusMessageKey = bankStatus.messageKey ?? bankStatus.tooltipKey;
+        const bankStatusMessage = bankStatusMessageKey ? translate(bankStatusMessageKey) : undefined;
+
+        let bankStatusCtaLabel: string | undefined;
+        if (bankStatus.actionKey === 'finish') {
+            bankStatusCtaLabel = translate('bankAccount.status.finishAction');
+        } else if (bankStatus.actionKey === 'confirm') {
+            bankStatusCtaLabel = translate('bankAccount.status.confirmAction');
+        } else if (bankStatus.actionKey === 'unlock') {
+            bankStatusCtaLabel = translate('bankAccount.status.unlockAction');
+        }
 
         const updateWorkspaceCurrencyPrompt = (
             <View style={[styles.renderHTML, styles.flexRow]}>
@@ -473,16 +495,37 @@ function WorkspaceWorkflowsPage({policy, route}: WorkspaceWorkflowsPageProps) {
                                     iconWidth={bankIcon.iconWidth ?? bankIcon.iconSize}
                                     iconStyles={bankIcon.iconStyles}
                                     disabled={isOffline || !isPolicyAdmin}
-                                    badgeText={getBadgeText(accountData?.state)}
+                                    badgeText={bankBadgeText}
                                     sentryLabel={CONST.SENTRY_LABEL.WORKSPACE.WORKFLOWS.BANK_ACCOUNT}
-                                    badgeIcon={isAccountInSetupState || (isBusinessBankAccountLocked && isPolicyAdmin) ? expensifyIcons.DotIndicator : undefined}
-                                    isBadgeSuccess={isAccountInSetupState}
-                                    isBadgeError={isBusinessBankAccountLocked && isPolicyAdmin}
+                                    badgeIcon={shouldShowBankBadgeIcon && isPolicyAdmin ? expensifyIcons.DotIndicator : undefined}
+                                    isBadgeSuccess={isBankBadgeSuccess}
+                                    isBadgeError={isBankBadgeError && isPolicyAdmin}
                                     shouldShowRightIcon
                                     shouldGreyOutWhenDisabled={!policy?.pendingFields?.reimbursementChoice}
                                     wrapperStyle={[styles.sectionMenuItemTopDescription, styles.mt3, styles.mbn3]}
-                                    brickRoadIndicator={hasReimburserError ? CONST.BRICK_ROAD_INDICATOR_STATUS.ERROR : undefined}
+                                    brickRoadIndicator={shouldShowBankRBR ? CONST.BRICK_ROAD_INDICATOR_STATUS.ERROR : undefined}
                                 />
+                                {!!bankStatusMessage && isPolicyAdmin && (
+                                    <View style={[styles.sectionMenuItemTopDescription, styles.mt4]}>
+                                        <FormHelpMessage
+                                            isError={isBankBadgeError}
+                                            // Falls back to verifyingTooltip when there is no actionable message (the Verifying state).
+                                            message={bankStatusMessage}
+                                            style={styles.mb2}
+                                        />
+                                        {!!bankStatusCtaLabel && (
+                                            <Button
+                                                small
+                                                text={bankStatusCtaLabel}
+                                                onPress={onBankStatusCtaPress}
+                                                isDisabled={isOffline}
+                                                success={!isBankBadgeError}
+                                                danger={isBankBadgeError}
+                                                style={styles.alignSelfStart}
+                                            />
+                                        )}
+                                    </View>
+                                )}
                             </>
                         ) : (
                             <MenuItem

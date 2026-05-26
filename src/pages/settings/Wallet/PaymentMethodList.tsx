@@ -21,6 +21,9 @@ import useOnyx from '@hooks/useOnyx';
 import usePermissions from '@hooks/usePermissions';
 import useThemeIllustrations from '@hooks/useThemeIllustrations';
 import useThemeStyles from '@hooks/useThemeStyles';
+import {pressLockedBankAccount} from '@libs/actions/BankAccounts';
+import {openOldDotLink} from '@libs/actions/Link';
+import {navigateToBankAccountRoute} from '@libs/actions/ReimbursementAccount';
 import {
     getAssignedCardSortKey,
     getCardFeedIcon,
@@ -40,7 +43,7 @@ import {
 import createDynamicRoute from '@libs/Navigation/helpers/dynamicRoutesUtils/createDynamicRoute';
 import Navigation from '@libs/Navigation/Navigation';
 import {formatPaymentMethods} from '@libs/PaymentUtils';
-import {getDescriptionForPolicyDomainCard} from '@libs/PolicyUtils';
+import {getDescriptionForPolicyDomainCard, isPolicyAdmin} from '@libs/PolicyUtils';
 import {getTravelInvoicingCard, isTravelCVVEligible} from '@libs/TravelInvoicingUtils';
 import colors from '@styles/theme/colors';
 import variables from '@styles/variables';
@@ -192,6 +195,8 @@ function PaymentMethodList({
     const isLoadingBankAccountList = isLoadingOnyxValue(bankAccountListResult);
     const [cardList = getEmptyObject<CardList>(), cardListResult] = useOnyx(ONYXKEYS.CARD_LIST);
     const isLoadingCardList = isLoadingOnyxValue(cardListResult);
+    const {datetimeToRelative: getDatetimeToRelative} = useLocalize();
+    const [conciergeReportID] = useOnyx(ONYXKEYS.CONCIERGE_REPORT_ID);
     const cardDomains = useMemo(
         () =>
             shouldShowAssignedCards
@@ -279,6 +284,13 @@ function PaymentMethodList({
                     } else {
                         cardDescription = getDescriptionForPolicyDomainCard(card.domainName, policiesForAssignedCards);
                     }
+
+                    // Append "Last synced …" to the description for direct-feed and personal cards (skip CSV).
+                    if (!isCSVCard) {
+                        const lastSyncLabel = card.lastScrape ? translate('walletPage.lastSync', getDatetimeToRelative(card.lastScrape)) : translate('walletPage.neverSynced');
+                        cardDescription = cardDescription ? `${cardDescription} ${CONST.DOT_SEPARATOR} ${lastSyncLabel}` : lastSyncLabel;
+                    }
+
                     // Personal cards navigate to personal card details page (except CSV cards which need 3-dot menu for delete)
                     // Company cards use the pressHandler callback (for 3-dot menu behavior)
                     const cardOnPress =
@@ -296,6 +308,17 @@ function PaymentMethodList({
                                       },
                                       cardID: card.cardID,
                                   });
+
+                    // Role-aware inline message for broken card connections (personal card only at this layer —
+                    // company-card domain group is handled below).
+                    let cardStatusOverride;
+                    if (isUserPersonalCard && !isCSVCard && isCardConnectionBroken(card)) {
+                        cardStatusOverride = {
+                            messageKey: 'walletPage.cardConnectionFixPersonal' as const,
+                            ctaLabelKey: 'walletPage.fixAction' as const,
+                            onCtaPress: () => openOldDotLink(CONST.OLDDOT_URLS.SETTINGS_WALLET_URL),
+                        };
+                    }
 
                     assignedCardsGrouped.push({
                         key: card.cardID.toString(),
@@ -315,8 +338,9 @@ function PaymentMethodList({
                         iconWidth: variables.cardIconWidth,
                         iconHeight: variables.cardIconHeight,
                         isMethodActive: activePaymentMethodID === card.cardID,
-                        isInactive: isCardInactive(card),
+                        isInactive: isCardInactive(card) || (isUserPersonalCard && isCardConnectionBroken(card)),
                         onPress: cardOnPress,
+                        cardStatusOverride,
                     });
                     continue;
                 }
@@ -348,10 +372,36 @@ function PaymentMethodList({
                 const pressHandler = onPress as CardPressHandler;
 
                 // The card shouldn't be grouped or it's domain group doesn't exist yet
-                const cardDescription =
+                let cardDescription =
                     card?.nameValuePairs?.issuedBy && card?.lastFourPAN
                         ? `${card?.lastFourPAN} ${CONST.DOT_SEPARATOR} ${getDescriptionForPolicyDomainCard(card.domainName, policiesForAssignedCards)}`
                         : getDescriptionForPolicyDomainCard(card.domainName, policiesForAssignedCards);
+
+                // Append "Last synced …" for direct-feed company cards (excluding CSV).
+                if (!isCSVCard) {
+                    const lastSyncLabel = card.lastScrape ? translate('walletPage.lastSync', getDatetimeToRelative(card.lastScrape)) : translate('walletPage.neverSynced');
+                    cardDescription = cardDescription ? `${cardDescription} ${CONST.DOT_SEPARATOR} ${lastSyncLabel}` : lastSyncLabel;
+                }
+
+                // Role-aware inline message for broken direct-feed company-card connections.
+                let domainCardStatusOverride;
+                if (isCardConnectionBroken(card)) {
+                    const domainPolicyID = card.domainName?.match(CONST.REGEX.EXPENSIFY_POLICY_DOMAIN_NAME)?.[1];
+                    const domainPolicy = domainPolicyID ? policiesForAssignedCards?.[`${ONYXKEYS.COLLECTION.POLICY}${domainPolicyID.toUpperCase()}`] : undefined;
+                    const isAdminForDomain = isPolicyAdmin(domainPolicy);
+                    if (isAdminForDomain && domainPolicyID) {
+                        domainCardStatusOverride = {
+                            messageKey: 'walletPage.cardConnectionFixAdmin' as const,
+                            ctaLabelKey: 'walletPage.fixAction' as const,
+                            onCtaPress: () => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS.getRoute(domainPolicyID)),
+                        };
+                    } else {
+                        domainCardStatusOverride = {
+                            messageKey: 'walletPage.cardConnectionFixEmployee' as const,
+                        };
+                    }
+                }
+
                 assignedCardsGrouped.push({
                     key: card.cardID.toString(),
                     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -383,8 +433,9 @@ function PaymentMethodList({
                     iconStyles: [styles.cardIcon],
                     iconWidth: variables.cardIconWidth,
                     iconHeight: variables.cardIconHeight,
-                    isInactive: isCardInactive(card),
+                    isInactive: isCardInactive(card) || isCardConnectionBroken(card),
                     isCardFrozen: isCardFrozen(card),
+                    cardStatusOverride: domainCardStatusOverride,
                 });
             }
 
@@ -488,6 +539,7 @@ function PaymentMethodList({
         customCardNames,
         styles,
         translate,
+        getDatetimeToRelative,
         isOffline,
         filterType,
         filterCurrency,
@@ -557,6 +609,26 @@ function PaymentMethodList({
 
     const filteredPaymentMethodsWithoutStrings = useMemo(() => filteredPaymentMethods.filter((method) => typeof method !== 'string'), [filteredPaymentMethods]);
 
+    const handleBankAccountStatusActionPress = useCallback(
+        (actionKey: 'finish' | 'confirm' | 'unlock' | undefined, paymentMethod: PaymentMethodItem) => {
+            if (!actionKey) {
+                return;
+            }
+            const accountData = paymentMethod.accountData;
+            const bankAccountID = accountData && 'bankAccountID' in accountData ? accountData.bankAccountID : undefined;
+            if (actionKey === 'unlock') {
+                if (bankAccountID) {
+                    // Posts the unlock request to Concierge as an optimistic comment; user can then open Concierge via the bell.
+                    pressLockedBankAccount(bankAccountID, translate, conciergeReportID ?? undefined);
+                }
+                return;
+            }
+            // Finish (SETUP) and Confirm (PENDING) both resume the VBA flow on the right step.
+            navigateToBankAccountRoute({policyID, bankAccountID, backTo: ROUTES.SETTINGS_WALLET});
+        },
+        [policyID, translate, conciergeReportID],
+    );
+
     /**
      * Create a menuItem for each passed paymentMethod
      */
@@ -579,6 +651,7 @@ function PaymentMethodList({
                     )}
                     listItemStyle={listItemStyle}
                     threeDotsMenuItems={threeDotsMenuItems}
+                    onBankAccountStatusActionPress={handleBankAccountStatusActionPress}
                 />
             );
         },
@@ -589,6 +662,7 @@ function PaymentMethodList({
             shouldHideDefaultBadge,
             listItemStyle,
             threeDotsMenuItems,
+            handleBankAccountStatusActionPress,
             styles.mt4,
             styles.mt6,
             styles.mb1,
