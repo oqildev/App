@@ -1018,20 +1018,21 @@ function revealRouteBeforeDismissingModal(route: Route, options?: {afterTransiti
 }
 
 /**
- * Leaves a chat thread and lands directly on the parent conversation with no intermediate screen.
+ * Leaves a chat thread and lands directly on the parent conversation.
  *
- * "Leave thread" is pressed from the report-details RHP. goBack(parentRoute) only pops the RHP via
- * goUp (non-recursive), leaving the user on the thread (#80075). Navigating after dismiss remounts
- * ReportsSplitNavigator → iOS blank frame (#83787).
+ * iOS cannot cleanly animate two concurrent navigation transitions (modal dismiss + stack pop) —
+ * any ordering that lets both play simultaneously produces either a thread flash (modal dismissed
+ * first, thread briefly visible) or a blank frame (parent treated as "entering" during combined
+ * commit). The only approach that avoids both is a single CommonActions.reset that removes the
+ * RHP and pops the thread route in one synchronous state mutation. react-native-screens applies
+ * both changes together; no intermediate state is ever committed to native.
  *
- * Fix: dispatch a targeted StackActions.pop to the split navigator (using the split's state key as
- * target) followed immediately by dismissModal() in the same synchronous tick. React Navigation
- * applies both to its state ref sequentially; React 18 batches the resulting setState calls into one
- * render → one native commit. The targeted pop gives the split router proper screensWithExitAnimation
- * semantics for the thread (exit, not enter), so the parent is never treated as "entering" by
- * react-native-screens → no blank frame. The modal slides away to reveal the parent directly.
+ * The RHP is removed by slicing the last root route (RIGHT_MODAL_NAVIGATOR). Route objects in
+ * the split are reused by reference so React Navigation retains all mounted components — no
+ * remount, so #83787 does not reproduce.
  *
- * For nested threads, popCount = topIndex − parentIndex pops exactly to the immediate parent thread.
+ * For nested threads, parentReportID is the immediate parent (one level up), so leaving any
+ * depth of nesting always lands on the direct parent conversation.
  */
 function dismissModalAndPopThread(parentReportID: string) {
     const performAction = () => {
@@ -1045,49 +1046,50 @@ function dismissModalAndPopThread(parentReportID: string) {
             return params?.reportID ?? params?.params?.reportID;
         };
 
-        // Walk the tree to find the split's state key and compute how many routes to pop.
-        const findSplitTarget = (routes: NavigationState['routes']): {splitKey: string; popCount: number} | null => {
-            for (const route of routes) {
+        let parentFoundInSplit = false;
+
+        const editRoutes = (routes: NavigationState['routes']): NavigationState['routes'] => {
+            return routes.map((route) => {
                 if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
                     const splitState = route.state as NavigationState;
                     const topIndex = splitState.index ?? splitState.routes.length - 1;
                     const parentIndex = splitState.routes.findLastIndex((r) => r.name === SCREENS.REPORT && getRouteReportID(r) === parentReportID);
-                    if (parentIndex !== -1 && parentIndex < topIndex && splitState.key) {
-                        return {splitKey: splitState.key, popCount: topIndex - parentIndex};
+                    if (parentIndex !== -1 && parentIndex < topIndex) {
+                        parentFoundInSplit = true;
+                        return {
+                            ...route,
+                            state: {
+                                ...splitState,
+                                routes: splitState.routes.slice(0, parentIndex + 1),
+                                index: parentIndex,
+                            },
+                        };
                     }
-                    return null;
+                    return route;
                 }
                 if (route.state) {
-                    const found = findSplitTarget((route.state as NavigationState).routes ?? []);
-                    if (found) {
-                        return found;
+                    const editedChildren = editRoutes((route.state as NavigationState).routes ?? []);
+                    if (editedChildren !== (route.state as NavigationState).routes) {
+                        return {...route, state: {...(route.state as NavigationState), routes: editedChildren}};
                     }
                 }
-            }
-            return null;
+                return route;
+            });
         };
 
-        const target = findSplitTarget(rootState.routes);
+        const editedRoutes = editRoutes(rootState.routes);
 
-        if (target) {
-            // Dispatch 1: targeted pop removes thread(s) from the split's central stack with proper
-            // exit-animation semantics (screensWithExitAnimation set for thread, parent NOT in
-            // screensWithEnteringAnimation → no blank on reveal).
-            navigationRef.current?.dispatch({...StackActions.pop(target.popCount), target: target.splitKey});
-
-            // Dispatch 2: dismiss the RHP. Both dispatches happen in the same synchronous tick;
-            // React Navigation updates its stateRef between them, and React 18 batches the two
-            // setState calls into a single re-render → single native commit.
-            dismissModal();
-        } else {
-            // Parent not in the split (e.g. deep-linked into thread). Dismiss first, then navigate
-            // into the already-mounted split — no remount, no blank.
-            dismissModal({
-                afterTransition: () => {
-                    navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID));
-                },
-            });
+        if (!parentFoundInSplit) {
+            // Parent not yet in the split (e.g. deep-linked into a thread).
+            dismissModal({afterTransition: () => navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID))});
+            return;
         }
+
+        // Drop the RHP (always the last root route when open) and apply the split edit in one reset.
+        // Single state mutation → single native diff → no concurrent animation conflict on iOS.
+        const isLastRouteModal = editedRoutes.at(-1)?.name === NAVIGATORS.RIGHT_MODAL_NAVIGATOR;
+        const finalRoutes = isLastRouteModal ? editedRoutes.slice(0, -1) : editedRoutes;
+        navigationRef.current?.dispatch(CommonActions.reset({...rootState, routes: finalRoutes, index: finalRoutes.length - 1}));
     };
 
     if (navigationRef.isReady()) {
