@@ -11,7 +11,6 @@ import CONST from '@src/CONST';
 import NAVIGATORS from '@src/NAVIGATORS';
 import SCREENS from '@src/SCREENS';
 import type {
-    DismissModalAndPopThreadActionType,
     OpenDomainSplitActionType,
     OpenWorkspaceSplitActionType,
     PushActionType,
@@ -513,73 +512,6 @@ function handleRemoveFullscreenUnderRHP(
 }
 
 /**
- * Handles the DISMISS_MODAL_AND_POP_THREAD action.
- *
- * Atomically: (1) edits the ReportsSplitNavigator central stack to pop the thread route and reveal
- * the parent (report.parentReportID), then (2) removes the RHP via StackActions.pop() so it slides
- * away with its normal dismiss animation. Both changes happen in ONE getStateForAction call →
- * one React Navigation state commit → one native transaction → the parent is revealed as the RHP
- * slides away with no intermediate thread screen (#80075) and no split remount (#83787).
- */
-function handleDismissModalAndPopThread(
-    state: StackNavigationState<ParamListBase>,
-    action: DismissModalAndPopThreadActionType,
-    configOptions: RouterConfigOptions,
-    stackRouter: Router<StackNavigationState<ParamListBase>, CommonActions.Action | StackActionType>,
-) {
-    const lastRoute = state.routes.at(-1);
-    if (!lastRoute?.name || !MODAL_ROUTES_TO_DISMISS.has(lastRoute.name)) {
-        return null;
-    }
-
-    const {parentReportID} = action.payload;
-    const getReportID = (route: NavigationState['routes'][number]) => {
-        const params = route.params as {reportID?: string; params?: {reportID?: string}} | undefined;
-        return params?.reportID ?? params?.params?.reportID;
-    };
-
-    // Walk the tree to find ReportsSplitNavigator (nested inside TAB_NAVIGATOR) and pop the thread.
-    const editRoutes = (routes: NavigationState['routes']): {routes: NavigationState['routes']; changed: boolean} => {
-        let changed = false;
-        const newRoutes = routes.map((route) => {
-            if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
-                const splitState = route.state as NavigationState;
-                const topIndex = splitState.index ?? splitState.routes.length - 1;
-                const parentIndex = splitState.routes.findLastIndex((r) => r.name === SCREENS.REPORT && getReportID(r) === parentReportID);
-                if (parentIndex !== -1 && parentIndex < topIndex) {
-                    changed = true;
-                    return {
-                        ...route,
-                        state: {
-                            ...splitState,
-                            routes: splitState.routes.slice(0, parentIndex + 1),
-                            index: parentIndex,
-                        },
-                    };
-                }
-                return route;
-            }
-            if (route.state) {
-                const result = editRoutes((route.state as NavigationState).routes ?? []);
-                if (result.changed) {
-                    changed = true;
-                    return {...route, state: {...(route.state as NavigationState), routes: result.routes}};
-                }
-            }
-            return route;
-        });
-        return {routes: newRoutes, changed};
-    };
-
-    const {routes: newRoutes} = editRoutes(state.routes as NavigationState['routes']);
-    const editedState = {...state, routes: newRoutes as StackNavigationState<ParamListBase>['routes']};
-
-    // Remove the RHP with its slide animation. editedState already has the split adjusted so the
-    // parent is the topmost central screen — it is revealed as the RHP slides away.
-    return stackRouter.getStateForAction(editedState, StackActions.pop(), configOptions);
-}
-
-/**
  * Handles the DISMISS_MODAL action.
  * If the last route is a modal route, it has to be popped from the navigation stack.
  */
@@ -634,7 +566,6 @@ function handleToggleSidePanelWithHistoryAction(state: StackNavigationState<Para
 
 export {
     handleDismissModalAction,
-    handleDismissModalAndPopThread,
     handleNavigatingToModalFromModal,
     handleOpenWorkspaceSplitAction,
     handleOpenDomainSplitAction,

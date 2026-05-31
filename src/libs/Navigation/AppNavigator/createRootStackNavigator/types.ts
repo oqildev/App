@@ -14,10 +14,6 @@ type RootStackNavigatorActionType =
           type: typeof CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL;
       }
     | {
-          type: typeof CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL_AND_POP_THREAD;
-          payload: {parentReportID: string};
-      }
-    | {
           type: typeof CONST.NAVIGATION.ACTION_TYPE.REPLACE_FULLSCREEN_UNDER_RHP;
           payload: {route: Route};
       }
@@ -72,11 +68,6 @@ type DismissModalActionType = RootStackNavigatorActionType & {
     type: typeof CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL;
 };
 
-type DismissModalAndPopThreadActionType = RootStackNavigatorActionType & {
-    type: typeof CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL_AND_POP_THREAD;
-    payload: {parentReportID: string};
-};
-
 type ReplaceFullscreenUnderRHPActionType = RootStackNavigatorActionType & {
     type: typeof CONST.NAVIGATION.ACTION_TYPE.REPLACE_FULLSCREEN_UNDER_RHP;
     payload: {route: Route};
@@ -97,7 +88,6 @@ export type {
     PushActionType,
     ReplaceActionType,
     DismissModalActionType,
-    DismissModalAndPopThreadActionType,
     PreloadActionType,
     ReplaceFullscreenUnderRHPActionType,
     RemoveFullscreenUnderRHPActionType,

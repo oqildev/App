@@ -1018,52 +1018,70 @@ function revealRouteBeforeDismissingModal(route: Route, options?: {afterTransiti
 }
 
 /**
- * Leaves a chat thread by atomically editing the split's central stack (popping the thread and
- * revealing the parent) and dismissing the RHP in a single root-router action. This produces one
- * React Navigation state commit and one native transaction, so the thread is never shown as an
- * intermediate screen (#80075) and ReportsSplitNavigator is never remounted (#83787).
+ * Leaves a chat thread and lands directly on the parent conversation with no intermediate screen.
  *
- * For nested threads, parentReportID is always one level up (the immediate parent thread), so leaving
- * any depth of nesting always lands on the direct parent conversation.
+ * "Leave thread" is pressed from the report-details RHP. goBack(parentRoute) only pops the RHP via
+ * goUp (non-recursive), leaving the user on the thread (#80075). Navigating after dismiss remounts
+ * ReportsSplitNavigator → iOS blank frame (#83787).
+ *
+ * Fix: dispatch a targeted StackActions.pop to the split navigator (using the split's state key as
+ * target) followed immediately by dismissModal() in the same synchronous tick. React Navigation
+ * applies both to its state ref sequentially; React 18 batches the resulting setState calls into one
+ * render → one native commit. The targeted pop gives the split router proper screensWithExitAnimation
+ * semantics for the thread (exit, not enter), so the parent is never treated as "entering" by
+ * react-native-screens → no blank frame. The modal slides away to reveal the parent directly.
+ *
+ * For nested threads, popCount = topIndex − parentIndex pops exactly to the immediate parent thread.
  */
 function dismissModalAndPopThread(parentReportID: string) {
     const performAction = () => {
         const rootState = navigationRef.current?.getRootState();
+        if (!rootState) {
+            return;
+        }
 
-        // Check if the parent is already mounted in the split to decide which path to take.
-        const isParentInSplit = ((): boolean => {
-            if (!rootState) {
-                return false;
-            }
-            const findInRoutes = (routes: typeof rootState.routes): boolean => {
-                for (const route of routes) {
-                    if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
-                        const splitState = route.state as NavigationState;
-                        const topIndex = splitState.index ?? splitState.routes.length - 1;
-                        const params = (r: (typeof splitState.routes)[number]) => r.params as {reportID?: string; params?: {reportID?: string}} | undefined;
-                        return (
-                            splitState.routes.findLastIndex(
-                                (r, i) => i < topIndex && r.name === SCREENS.REPORT && (params(r)?.reportID ?? params(r)?.params?.reportID) === parentReportID,
-                            ) !== -1
-                        );
+        const getRouteReportID = (route: NavigationState['routes'][number]) => {
+            const params = route.params as {reportID?: string; params?: {reportID?: string}} | undefined;
+            return params?.reportID ?? params?.params?.reportID;
+        };
+
+        // Walk the tree to find the split's state key and compute how many routes to pop.
+        const findSplitTarget = (routes: NavigationState['routes']): {splitKey: string; popCount: number} | null => {
+            for (const route of routes) {
+                if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
+                    const splitState = route.state as NavigationState;
+                    const topIndex = splitState.index ?? splitState.routes.length - 1;
+                    const parentIndex = splitState.routes.findLastIndex((r) => r.name === SCREENS.REPORT && getRouteReportID(r) === parentReportID);
+                    if (parentIndex !== -1 && parentIndex < topIndex && splitState.key) {
+                        return {splitKey: splitState.key, popCount: topIndex - parentIndex};
                     }
-                    if (route.state && findInRoutes((route.state as NavigationState).routes ?? [])) {
-                        return true;
+                    return null;
+                }
+                if (route.state) {
+                    const found = findSplitTarget((route.state as NavigationState).routes ?? []);
+                    if (found) {
+                        return found;
                     }
                 }
-                return false;
-            };
-            return findInRoutes(rootState.routes);
-        })();
+            }
+            return null;
+        };
 
-        if (isParentInSplit) {
-            navigationRef.current?.dispatch({
-                type: CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL_AND_POP_THREAD,
-                payload: {parentReportID},
-            });
+        const target = findSplitTarget(rootState.routes);
+
+        if (target) {
+            // Dispatch 1: targeted pop removes thread(s) from the split's central stack with proper
+            // exit-animation semantics (screensWithExitAnimation set for thread, parent NOT in
+            // screensWithEnteringAnimation → no blank on reveal).
+            navigationRef.current?.dispatch({...StackActions.pop(target.popCount), target: target.splitKey});
+
+            // Dispatch 2: dismiss the RHP. Both dispatches happen in the same synchronous tick;
+            // React Navigation updates its stateRef between them, and React 18 batches the two
+            // setState calls into a single re-render → single native commit.
+            dismissModal();
         } else {
-            // Parent not yet in the split (e.g. deep-linked into a thread). Dismiss first, then
-            // navigate into the already-mounted split — still no split remount, no blank.
+            // Parent not in the split (e.g. deep-linked into thread). Dismiss first, then navigate
+            // into the already-mounted split — no remount, no blank.
             dismissModal({
                 afterTransition: () => {
                     navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID));
