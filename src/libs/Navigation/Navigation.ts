@@ -1085,11 +1085,17 @@ function dismissModalAndPopThread(parentReportID: string) {
             return;
         }
 
-        // Drop the RHP (always the last root route when open) and apply the split edit in one reset.
-        // Single state mutation → single native diff → no concurrent animation conflict on iOS.
-        const isLastRouteModal = editedRoutes.at(-1)?.name === NAVIGATORS.RIGHT_MODAL_NAVIGATOR;
-        const finalRoutes = isLastRouteModal ? editedRoutes.slice(0, -1) : editedRoutes;
-        navigationRef.current?.dispatch(CommonActions.reset({...rootState, routes: finalRoutes, index: finalRoutes.length - 1}));
+        // Phase 1: Instantly swap the split's central stack to show the parent, while keeping the
+        // RHP intact so it still covers the screen. CommonActions.reset with no animation metadata
+        // → react-native-screens applies the split change without a transition → no entering
+        // animation for the parent → no blank. The user sees nothing change (RHP is still on top).
+        navigationRef.current?.dispatch(CommonActions.reset({...rootState, routes: editedRoutes}));
+
+        // Phase 2: After one rAF React has committed the split update and the parent's native view
+        // is ready under the modal. Now dismiss the RHP — it slides away to reveal the parent.
+        requestAnimationFrame(() => {
+            dismissModal();
+        });
     };
 
     if (navigationRef.isReady()) {
