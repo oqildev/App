@@ -4861,12 +4861,8 @@ function leaveRoom(
         Navigation.dismissModal();
         return;
     }
-    // Leaving a chat thread: navigate back to the parent conversation. We pop the thread route inside
-    // ReportsSplitNavigator (revealing the already-mounted parent) and then dismiss the RHP, so the split
-    // navigator is NOT remounted. This avoids the iOS blank-frame regression (#83787) that the previous
-    // dismissModal()-then-navigate ordering caused, while still escaping the thread (#80075).
     if (isChatThread && report.parentReportID) {
-        Navigation.dismissRHPAndPopThreadInSplit(report.parentReportID);
+        Navigation.popThreadInSplitAndDismissRHP(report.parentReportID);
         return;
     }
     // In other cases, the report is deleted and we should move the user to another report.

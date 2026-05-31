@@ -4,7 +4,7 @@ import {CommonActions, StackActions, TabActions} from '@react-navigation/native'
 import {Str} from 'expensify-common';
 // eslint-disable-next-line you-dont-need-lodash-underscore/omit
 import omit from 'lodash/omit';
-import {DeviceEventEmitter, Dimensions, InteractionManager} from 'react-native';
+import {DeviceEventEmitter, Dimensions} from 'react-native';
 import type {OnyxEntry} from 'react-native-onyx';
 import Onyx from 'react-native-onyx';
 import type {Writable} from 'type-fest';
@@ -1018,84 +1018,86 @@ function revealRouteBeforeDismissingModal(route: Route, options?: {afterTransiti
 }
 
 /**
- * Leaves a chat thread and returns to the parent conversation without remounting ReportsSplitNavigator.
+ * Leaves a chat thread and navigates directly to the parent conversation (report.parentReportID),
+ * without remounting ReportsSplitNavigator and without showing the thread as an intermediate step.
  *
- * "Leave thread" is pressed from the report-details RHP layered over ReportsSplitNavigator, whose central
- * stack is [..., parent, thread]. A plain goBack(parentRoute) only pops the RHP (goUp does not recurse into
- * the nested split stack), leaving the user on the thread (#80075). Dismissing the modal and navigating to
- * REPORT_WITH_ID instead remounts the split navigator, which blank-frames on iOS (#83787).
+ * Root cause of #80075: goBack(parentRoute) only pops the RHP via goUp, which does not recurse into
+ * the nested split central stack, leaving the user on the thread. The earlier fix (PR #82516) dismissed
+ * the modal and navigated to REPORT_WITH_ID, which remounts ReportsSplitNavigator and blank-frames on iOS
+ * (#83787).
  *
- * If the parent report is already mounted under the thread in the split's central stack, we pop the thread
- * route off that nested stack (revealing the already-painted parent) and then dismiss the RHP — no remount,
- * no blank frame. Otherwise (e.g. deep-link straight into a thread) we fall back to revealing the parent
- * route under the modal before dismissing.
+ * Fix: edit the split's central stack in-place via a state-updater dispatch (preserving all route keys —
+ * no remount, no blank). The RHP route is left intact at this step, so the split edit is invisible on
+ * narrow layout (the RHP covers everything). Then dismissModal() slides the RHP out with its normal
+ * animation, revealing the parent. The parent ReportScreen's native views were retained by
+ * ScreenFreezeWrapper's CustomViewWrapper during freeze, so it is immediately visible when unfrozen —
+ * no blank frame, no intermediate thread screen.
+ *
+ * For nested threads, report.parentReportID points one level up (the immediate parent), so leaving any
+ * depth of nesting always lands on the direct parent conversation.
  */
-function dismissRHPAndPopThreadInSplit(parentReportID: string) {
+function popThreadInSplitAndDismissRHP(parentReportID: string) {
     const performAction = () => {
-        const rootState = navigationRef.current?.getRootState();
-        const parentRoute = ROUTES.REPORT_WITH_ID.getRoute(parentReportID);
+        let parentFoundInSplit = false;
 
-        // ReportsSplitNavigator is nested inside the TAB_NAVIGATOR (not at the root), so search the whole tree
-        // for the topmost split state rather than only the root routes.
-        const findReportsSplitState = (state: NavigationState | PartialState<NavigationState> | undefined): NavigationState | undefined => {
-            if (!state?.routes) {
-                return undefined;
-            }
-            for (let i = state.routes.length - 1; i >= 0; i--) {
-                const route = state.routes.at(i);
-                if (route?.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
-                    return route.state as NavigationState;
-                }
-                const nested = findReportsSplitState(route?.state);
-                if (nested) {
-                    return nested;
-                }
-            }
-            return undefined;
-        };
-
-        const splitState = findReportsSplitState(rootState);
-        const centralRoutes = splitState?.routes ?? [];
-        const topIndex = splitState?.index ?? centralRoutes.length - 1;
-        // A REPORT route's params can be flat ({reportID}) or nested ({screen, params: {reportID}}) depending on
-        // how it was pushed, so read both shapes when matching the parent.
-        const getRouteReportID = (route: (typeof centralRoutes)[number]) => {
+        const getRouteReportID = (route: NavigationState['routes'][number]) => {
             const params = route.params as {reportID?: string; params?: {reportID?: string}} | undefined;
             return params?.reportID ?? params?.params?.reportID;
         };
-        const parentIndex = centralRoutes.findLastIndex((route) => route.name === SCREENS.REPORT && getRouteReportID(route) === parentReportID);
 
-        if (splitState?.key && parentIndex !== -1 && parentIndex < topIndex) {
-            const popThreadInSplit = () => {
-                navigationRef.current?.dispatch({...StackActions.pop(topIndex - parentIndex), target: splitState.key});
+        // Edit the split's central stack atomically while keeping the RHP in the root routes so it can animate out.
+        navigationRef.current?.dispatch((rootState) => {
+            const editRoutes = (routes: NavigationState['routes']): {routes: NavigationState['routes']; changed: boolean} => {
+                let changed = false;
+                const newRoutes = routes.map((route) => {
+                    if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
+                        const splitState = route.state as NavigationState;
+                        const topIndex = splitState.index ?? splitState.routes.length - 1;
+                        const parentIndex = splitState.routes.findLastIndex((r) => r.name === SCREENS.REPORT && getRouteReportID(r) === parentReportID);
+                        if (parentIndex !== -1 && parentIndex < topIndex) {
+                            parentFoundInSplit = true;
+                            changed = true;
+                            return {
+                                ...route,
+                                state: {
+                                    ...splitState,
+                                    routes: splitState.routes.slice(0, parentIndex + 1),
+                                    index: parentIndex,
+                                },
+                            };
+                        }
+                        return route;
+                    }
+                    if (route.state) {
+                        const result = editRoutes((route.state as NavigationState).routes ?? []);
+                        if (result.changed) {
+                            changed = true;
+                            return {...route, state: {...(route.state as NavigationState), routes: result.routes}};
+                        }
+                    }
+                    return route;
+                });
+                return {routes: newRoutes, changed};
             };
 
-            if (getIsNarrowLayout()) {
-                // On narrow layout the split sits frozen behind the fullscreen RHP (FreezeWrapper + freezeOnBlur),
-                // so the parent report can't paint while the modal is open. Dismiss the RHP first, then pop the
-                // thread inside the split once the dismiss animation finishes — this reveals the (now unfrozen)
-                // parent without the iOS blank frame (#83787) that popping-before-dismiss produces.
-                dismissModal({afterTransition: popThreadInSplit});
-                return;
-            }
-
-            // Wide layout renders the parent central pane underneath the RHP already, so pop the thread to reveal
-            // the painted parent, then dismiss the modal — single clean motion, no blank frame.
-            popThreadInSplit();
-            InteractionManager.runAfterInteractions(() => {
-                dismissModal();
-            });
-            return;
-        }
-
-        // Parent isn't mounted in the split stack (e.g. deep-link straight into a thread). Dismiss the RHP first,
-        // then navigate into the already-mounted split. Using navigate-after-dismiss (not revealRouteBeforeDismissingModal)
-        // avoids remounting ReportsSplitNavigator, which is what blank-frames on iOS (#83787).
-        dismissModal({
-            afterTransition: () => {
-                navigate(parentRoute);
-            },
+            const {routes: newRoutes, changed} = editRoutes(rootState.routes);
+            return CommonActions.reset(changed ? {...rootState, routes: newRoutes} : rootState);
         });
+
+        if (parentFoundInSplit) {
+            // The split state edit above makes the parent the top screen; ScreenFreezeWrapper unfreezes
+            // synchronously (useLayoutEffect path) and CustomViewWrapper retains native views — parent is
+            // immediately visible once the RHP slides away. No blank frame, no intermediate thread screen.
+            dismissModal();
+        } else {
+            // Parent not yet mounted in the split (e.g. deep-linked directly into a thread).
+            // Dismiss first, then navigate into the already-mounted split — still no remount.
+            dismissModal({
+                afterTransition: () => {
+                    navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID));
+                },
+            });
+        }
     };
 
     if (navigationRef.isReady()) {
@@ -1313,7 +1315,7 @@ export default {
     dismissToPreviousRHP,
     dismissToSuperWideRHP,
     revealRouteBeforeDismissingModal,
-    dismissRHPAndPopThreadInSplit,
+    popThreadInSplitAndDismissRHP,
     preInsertFullscreenUnderRHP,
     getIsFullscreenPreInsertedUnderRHP,
     getPreInsertedFullscreenRouteName,
