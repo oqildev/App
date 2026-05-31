@@ -11,6 +11,7 @@ import CONST from '@src/CONST';
 import NAVIGATORS from '@src/NAVIGATORS';
 import {
     handleDismissModalAction,
+    handleDismissModalAndPopThread,
     handleNavigatingToModalFromModal,
     handleOpenDomainSplitAction,
     handleOpenWorkspaceSplitAction,
@@ -23,6 +24,7 @@ import {
 import syncBrowserHistory from './syncBrowserHistory';
 import type {
     DismissModalActionType,
+    DismissModalAndPopThreadActionType,
     OpenDomainSplitActionType,
     OpenWorkspaceSplitActionType,
     PreloadActionType,
@@ -53,6 +55,10 @@ function isReplaceAction(action: RootStackNavigatorAction): action is ReplaceAct
 
 function isDismissModalAction(action: RootStackNavigatorAction): action is DismissModalActionType {
     return action.type === CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL;
+}
+
+function isDismissModalAndPopThreadAction(action: RootStackNavigatorAction): action is DismissModalAndPopThreadActionType {
+    return action.type === CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL_AND_POP_THREAD;
 }
 
 function isReplaceFullscreenUnderRHPAction(action: RootStackNavigatorAction): action is ReplaceFullscreenUnderRHPActionType {
@@ -152,6 +158,10 @@ function RootStackRouter(options: RootStackNavigatorRouterOptions) {
 
             if (isOpenDomainSplitAction(action)) {
                 return handleOpenDomainSplitAction(state, action, configOptions, stackRouter);
+            }
+
+            if (isDismissModalAndPopThreadAction(action)) {
+                return handleDismissModalAndPopThread(state, action, configOptions, stackRouter);
             }
 
             if (isDismissModalAction(action)) {

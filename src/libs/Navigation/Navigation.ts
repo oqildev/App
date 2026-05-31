@@ -1017,6 +1017,68 @@ function revealRouteBeforeDismissingModal(route: Route, options?: {afterTransiti
     });
 }
 
+/**
+ * Leaves a chat thread by atomically editing the split's central stack (popping the thread and
+ * revealing the parent) and dismissing the RHP in a single root-router action. This produces one
+ * React Navigation state commit and one native transaction, so the thread is never shown as an
+ * intermediate screen (#80075) and ReportsSplitNavigator is never remounted (#83787).
+ *
+ * For nested threads, parentReportID is always one level up (the immediate parent thread), so leaving
+ * any depth of nesting always lands on the direct parent conversation.
+ */
+function dismissModalAndPopThread(parentReportID: string) {
+    const performAction = () => {
+        const rootState = navigationRef.current?.getRootState();
+
+        // Check if the parent is already mounted in the split to decide which path to take.
+        const isParentInSplit = ((): boolean => {
+            if (!rootState) {
+                return false;
+            }
+            const findInRoutes = (routes: typeof rootState.routes): boolean => {
+                for (const route of routes) {
+                    if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
+                        const splitState = route.state as NavigationState;
+                        const topIndex = splitState.index ?? splitState.routes.length - 1;
+                        const params = (r: (typeof splitState.routes)[number]) => r.params as {reportID?: string; params?: {reportID?: string}} | undefined;
+                        return (
+                            splitState.routes.findLastIndex(
+                                (r, i) => i < topIndex && r.name === SCREENS.REPORT && (params(r)?.reportID ?? params(r)?.params?.reportID) === parentReportID,
+                            ) !== -1
+                        );
+                    }
+                    if (route.state && findInRoutes((route.state as NavigationState).routes ?? [])) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            return findInRoutes(rootState.routes);
+        })();
+
+        if (isParentInSplit) {
+            navigationRef.current?.dispatch({
+                type: CONST.NAVIGATION.ACTION_TYPE.DISMISS_MODAL_AND_POP_THREAD,
+                payload: {parentReportID},
+            });
+        } else {
+            // Parent not yet in the split (e.g. deep-linked into a thread). Dismiss first, then
+            // navigate into the already-mounted split — still no split remount, no blank.
+            dismissModal({
+                afterTransition: () => {
+                    navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID));
+                },
+            });
+        }
+    };
+
+    if (navigationRef.isReady()) {
+        performAction();
+    } else {
+        isNavigationReady().then(performAction);
+    }
+}
+
 // Module-level state tracking the pre-inserted fullscreen route. This follows the same
 // pattern as other module-level navigation state in this file (e.g. pendingRoute).
 // It is only mutated from preInsertFullscreenUnderRHP / clearFullscreenPreInsertedFlag /
@@ -1225,6 +1287,7 @@ export default {
     dismissToPreviousRHP,
     dismissToSuperWideRHP,
     revealRouteBeforeDismissingModal,
+    dismissModalAndPopThread,
     preInsertFullscreenUnderRHP,
     getIsFullscreenPreInsertedUnderRHP,
     getPreInsertedFullscreenRouteName,
