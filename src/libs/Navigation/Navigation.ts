@@ -1017,96 +1017,6 @@ function revealRouteBeforeDismissingModal(route: Route, options?: {afterTransiti
     });
 }
 
-/**
- * Leaves a chat thread and navigates directly to the parent conversation (report.parentReportID),
- * without remounting ReportsSplitNavigator and without showing the thread as an intermediate step.
- *
- * Root cause of #80075: goBack(parentRoute) only pops the RHP via goUp, which does not recurse into
- * the nested split central stack, leaving the user on the thread. The earlier fix (PR #82516) dismissed
- * the modal and navigated to REPORT_WITH_ID, which remounts ReportsSplitNavigator and blank-frames on iOS
- * (#83787).
- *
- * Fix: edit the split's central stack in-place via a state-updater dispatch (preserving all route keys —
- * no remount, no blank). The RHP route is left intact at this step, so the split edit is invisible on
- * narrow layout (the RHP covers everything). Then dismissModal() slides the RHP out with its normal
- * animation, revealing the parent. The parent ReportScreen's native views were retained by
- * ScreenFreezeWrapper's CustomViewWrapper during freeze, so it is immediately visible when unfrozen —
- * no blank frame, no intermediate thread screen.
- *
- * For nested threads, report.parentReportID points one level up (the immediate parent), so leaving any
- * depth of nesting always lands on the direct parent conversation.
- */
-function popThreadInSplitAndDismissRHP(parentReportID: string) {
-    const performAction = () => {
-        let parentFoundInSplit = false;
-
-        const getRouteReportID = (route: NavigationState['routes'][number]) => {
-            const params = route.params as {reportID?: string; params?: {reportID?: string}} | undefined;
-            return params?.reportID ?? params?.params?.reportID;
-        };
-
-        // Edit the split's central stack atomically while keeping the RHP in the root routes so it can animate out.
-        navigationRef.current?.dispatch((rootState) => {
-            const editRoutes = (routes: NavigationState['routes']): {routes: NavigationState['routes']; changed: boolean} => {
-                let changed = false;
-                const newRoutes = routes.map((route) => {
-                    if (route.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR && route.state) {
-                        const splitState = route.state as NavigationState;
-                        const topIndex = splitState.index ?? splitState.routes.length - 1;
-                        const parentIndex = splitState.routes.findLastIndex((r) => r.name === SCREENS.REPORT && getRouteReportID(r) === parentReportID);
-                        if (parentIndex !== -1 && parentIndex < topIndex) {
-                            parentFoundInSplit = true;
-                            changed = true;
-                            return {
-                                ...route,
-                                state: {
-                                    ...splitState,
-                                    routes: splitState.routes.slice(0, parentIndex + 1),
-                                    index: parentIndex,
-                                },
-                            };
-                        }
-                        return route;
-                    }
-                    if (route.state) {
-                        const result = editRoutes((route.state as NavigationState).routes ?? []);
-                        if (result.changed) {
-                            changed = true;
-                            return {...route, state: {...(route.state as NavigationState), routes: result.routes}};
-                        }
-                    }
-                    return route;
-                });
-                return {routes: newRoutes, changed};
-            };
-
-            const {routes: newRoutes, changed} = editRoutes(rootState.routes);
-            return CommonActions.reset(changed ? {...rootState, routes: newRoutes} : rootState);
-        });
-
-        if (parentFoundInSplit) {
-            // The split state edit above makes the parent the top screen; ScreenFreezeWrapper unfreezes
-            // synchronously (useLayoutEffect path) and CustomViewWrapper retains native views — parent is
-            // immediately visible once the RHP slides away. No blank frame, no intermediate thread screen.
-            dismissModal();
-        } else {
-            // Parent not yet mounted in the split (e.g. deep-linked directly into a thread).
-            // Dismiss first, then navigate into the already-mounted split — still no remount.
-            dismissModal({
-                afterTransition: () => {
-                    navigate(ROUTES.REPORT_WITH_ID.getRoute(parentReportID));
-                },
-            });
-        }
-    };
-
-    if (navigationRef.isReady()) {
-        performAction();
-    } else {
-        isNavigationReady().then(performAction);
-    }
-}
-
 // Module-level state tracking the pre-inserted fullscreen route. This follows the same
 // pattern as other module-level navigation state in this file (e.g. pendingRoute).
 // It is only mutated from preInsertFullscreenUnderRHP / clearFullscreenPreInsertedFlag /
@@ -1315,7 +1225,6 @@ export default {
     dismissToPreviousRHP,
     dismissToSuperWideRHP,
     revealRouteBeforeDismissingModal,
-    popThreadInSplitAndDismissRHP,
     preInsertFullscreenUnderRHP,
     getIsFullscreenPreInsertedUnderRHP,
     getPreInsertedFullscreenRouteName,

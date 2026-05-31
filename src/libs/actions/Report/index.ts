@@ -4862,7 +4862,11 @@ function leaveRoom(
         return;
     }
     if (isChatThread && report.parentReportID) {
-        Navigation.popThreadInSplitAndDismissRHP(report.parentReportID);
+        Navigation.dismissModal({
+            afterTransition: () => {
+                Navigation.goBack(ROUTES.REPORT_WITH_ID.getRoute(report.parentReportID));
+            },
+        });
         return;
     }
     // In other cases, the report is deleted and we should move the user to another report.
