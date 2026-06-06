@@ -7,16 +7,16 @@ import useParentReportAction from './useParentReportAction';
 import useReportIsArchived from './useReportIsArchived';
 
 function useOnboardingTaskInformation(taskName: IntroSelectedTask) {
-    const [introSelected] = useOnyx(ONYXKEYS.NVP_INTRO_SELECTED);
+    const [introSelected, introSelectedMetadata] = useOnyx(ONYXKEYS.NVP_INTRO_SELECTED);
     const taskReportID = introSelected?.[taskName];
     const [taskReport, taskReportMetadata] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT}${taskReportID}`, undefined, [taskReportID]);
     const [taskParentReport] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT}${taskReport?.parentReportID}`);
     const hasOutstandingChildTask = useHasOutstandingChildTask(taskReport);
     const isOnboardingTaskParentReportArchived = useReportIsArchived(taskParentReport?.reportID);
     const parentReportAction = useParentReportAction(taskReport);
-    // True when a task report ID exists but its report hasn't hydrated into Onyx yet, so callers can
-    // wait instead of treating it as "no task" (which would skip completion on a timing race).
-    const isLoadingTaskReport = !!taskReportID && isLoadingOnyxValue(taskReportMetadata);
+    // True while introSelected itself is loading, or a known task report ID hasn't hydrated yet — so callers
+    // can wait instead of treating it as "no task" (which would skip completion on a timing race).
+    const isLoadingTaskReport = isLoadingOnyxValue(introSelectedMetadata) || (!!taskReportID && isLoadingOnyxValue(taskReportMetadata));
     return {
         taskReportID,
         taskReport,

@@ -57,16 +57,21 @@ function TestDriveDemo() {
     const hasCalledOpenReportRef = useRef(false);
 
     useEffect(() => {
-        if (hasSeenTour) {
-            return;
-        }
-        // A viewTour task exists for this account but its report hasn't hydrated into Onyx yet.
-        // Wait for it instead of taking the no-task fallback below, which would set selfTourViewed
-        // and permanently skip completing the task once hasSeenTour flips to true.
-        if (viewTourTaskReportID && (isLoadingViewTourTaskReport || !viewTourTaskReport)) {
+        const isViewTourTaskOpen =
+            !!viewTourTaskReport && (viewTourTaskReport.stateNum !== CONST.REPORT.STATE_NUM.APPROVED || viewTourTaskReport.statusNum !== CONST.REPORT.STATUS_NUM.APPROVED);
+
+        // Only bail on hasSeenTour when the task isn't still open. If selfTourViewed was set (e.g. on a
+        // prior render before the report hydrated) but the task is still OPEN, we keep trying to complete it.
+        if (hasSeenTour && !isViewTourTaskOpen) {
             return;
         }
         if (!viewTourTaskReport) {
+            // A viewTour task exists for this account but its report hasn't hydrated yet — wait instead of
+            // taking the no-task fallback, which would set selfTourViewed and skip completing the task.
+            if (isLoadingViewTourTaskReport || viewTourTaskReportID) {
+                return;
+            }
+
             // Fallback for accounts with no viewTour task — otherwise selfTourViewed never gets set.
             setSelfTourViewed();
             if (conciergeReportID && !hasCalledOpenReportRef.current) {
@@ -75,7 +80,7 @@ function TestDriveDemo() {
             }
             return;
         }
-        if (viewTourTaskReport.stateNum === CONST.REPORT.STATE_NUM.APPROVED) {
+        if (!isViewTourTaskOpen) {
             return;
         }
 
