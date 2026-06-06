@@ -43,6 +43,8 @@ import type {
 import type {ImportFinalModal} from '@src/types/onyx/ImportedSpreadsheet';
 import type {OnyxData} from '@src/types/onyx/Request';
 import type Transaction from '@src/types/onyx/Transaction';
+import type {OnboardingTaskInfo} from './Task';
+import {getFinishOnboardingTaskOnyxData} from './Task';
 import {getImportFailedFinalModal, getImportFinalModalID, getImportFinalModalOnyxData, waitForImportFinalModal} from './ImportSpreadsheet';
 
 type AddNewCompanyCardFlowData = {
@@ -182,6 +184,8 @@ function addNewCompanyCardsFeed(
     feedDetails: CardFeedDetails,
     cardFeeds: OnyxEntry<CombinedCardFeeds>,
     lastSelectedFeed?: CompanyCardFeedWithDomainID,
+    connectCorporateCardTaskInfo?: OnboardingTaskInfo,
+    currentUserAccountID?: number,
 ) {
     if (!policyID) {
         return;
@@ -190,7 +194,14 @@ function addNewCompanyCardsFeed(
     const feedType = CardUtils.getFeedType(cardFeed, cardFeeds);
     const newSelectedFeed = getCardFeedWithDomainID(feedType, workspaceAccountID) as CompanyCardFeedWithDomainID;
 
-    const optimisticData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.LAST_SELECTED_FEED | typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER>> = [
+    const optimisticData: Array<
+        OnyxUpdate<
+            | typeof ONYXKEYS.COLLECTION.LAST_SELECTED_FEED
+            | typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER
+            | typeof ONYXKEYS.COLLECTION.REPORT
+            | typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS
+        >
+    > = [
         {
             onyxMethod: Onyx.METHOD.MERGE,
             key: `${ONYXKEYS.COLLECTION.LAST_SELECTED_FEED}${policyID}`,
@@ -212,7 +223,14 @@ function addNewCompanyCardsFeed(
         },
     ];
 
-    const failureData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.LAST_SELECTED_FEED | typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER>> = [
+    const failureData: Array<
+        OnyxUpdate<
+            | typeof ONYXKEYS.COLLECTION.LAST_SELECTED_FEED
+            | typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER
+            | typeof ONYXKEYS.COLLECTION.REPORT
+            | typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS
+        >
+    > = [
         {
             onyxMethod: Onyx.METHOD.MERGE,
             key: `${ONYXKEYS.COLLECTION.LAST_SELECTED_FEED}${policyID}`,
@@ -252,7 +270,24 @@ function addNewCompanyCardsFeed(
             : '',
     };
 
-    API.write(WRITE_COMMANDS.REQUEST_FEED_SETUP, parameters, {optimisticData, failureData, finallyData});
+    // Auto-complete the "Connect corporate cards" onboarding task by piggy-backing its completion onto this request.
+    const successData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS>> = [];
+    if (connectCorporateCardTaskInfo?.taskReport && currentUserAccountID) {
+        const finishOnboardingTaskData = getFinishOnboardingTaskOnyxData(
+            connectCorporateCardTaskInfo.taskReport,
+            connectCorporateCardTaskInfo.taskParentReport,
+            connectCorporateCardTaskInfo.isParentReportArchived,
+            currentUserAccountID,
+            connectCorporateCardTaskInfo.hasOutstandingChildTask,
+            connectCorporateCardTaskInfo.parentReportAction,
+            undefined,
+        );
+        optimisticData.push(...(finishOnboardingTaskData.optimisticData ?? []));
+        successData.push(...(finishOnboardingTaskData.successData ?? []));
+        failureData.push(...(finishOnboardingTaskData.failureData ?? []));
+    }
+
+    API.write(WRITE_COMMANDS.REQUEST_FEED_SETUP, parameters, {optimisticData, successData, failureData, finallyData});
 }
 
 function setWorkspaceCompanyCardFeedName(policyID: string, domainOrWorkspaceAccountID: number, bankName: CompanyCardFeedWithNumber, userDefinedName: string) {

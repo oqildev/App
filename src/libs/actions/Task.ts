@@ -1507,6 +1507,20 @@ function completeTestDriveTask(
     );
 }
 
+/**
+ * Onboarding task report info resolved by `useOnboardingTaskInformation`, threaded into non-task actions
+ * (e.g. inviting members, connecting a company card) so they can complete the matching onboarding checklist task.
+ */
+type OnboardingTaskInfo = {
+    taskReport: OnyxEntry<OnyxTypes.Report>;
+    taskParentReport: OnyxEntry<OnyxTypes.Report>;
+    isParentReportArchived: boolean;
+    hasOutstandingChildTask: boolean;
+    parentReportAction: OnyxEntry<ReportAction> | undefined;
+};
+
+export type {OnboardingTaskInfo};
+
 export {
     createTaskAndNavigate,
     editTask,

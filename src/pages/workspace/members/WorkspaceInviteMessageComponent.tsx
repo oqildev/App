@@ -17,6 +17,7 @@ import TextInput from '@components/TextInput';
 import useAllPolicyExpenseChatReportActions from '@hooks/useAllPolicyExpenseChatReportActions';
 import useAutoFocusInput from '@hooks/useAutoFocusInput';
 import useLocalize from '@hooks/useLocalize';
+import useOnboardingTaskInformation from '@hooks/useOnboardingTaskInformation';
 import useOnyx from '@hooks/useOnyx';
 import useThemeStyles from '@hooks/useThemeStyles';
 import {clearDraftValues} from '@libs/actions/FormActions';
@@ -69,6 +70,13 @@ function WorkspaceInviteMessageComponent({
     const [formData, formDataResult] = useOnyx(ONYXKEYS.FORMS.WORKSPACE_INVITE_MESSAGE_FORM_DRAFT);
     const [allPersonalDetails] = useOnyx(ONYXKEYS.PERSONAL_DETAILS_LIST);
     const filteredReportActions = useAllPolicyExpenseChatReportActions();
+    const {
+        taskReport: inviteTeamTaskReport,
+        taskParentReport: inviteTeamTaskParentReport,
+        isOnboardingTaskParentReportArchived: isInviteTeamTaskParentReportArchived,
+        hasOutstandingChildTask: inviteTeamHasOutstandingChildTask,
+        parentReportAction: inviteTeamParentReportAction,
+    } = useOnboardingTaskInformation(CONST.ONBOARDING_TASK_TYPE.INVITE_TEAM);
 
     const [welcomeNote, setWelcomeNote] = useState<string>();
 
@@ -167,6 +175,13 @@ function WorkspaceInviteMessageComponent({
             },
             shouldShowApproverRow ? validatedApprover : undefined,
             filteredReportActions,
+            {
+                taskReport: inviteTeamTaskReport,
+                taskParentReport: inviteTeamTaskParentReport,
+                isParentReportArchived: isInviteTeamTaskParentReportArchived,
+                hasOutstandingChildTask: inviteTeamHasOutstandingChildTask,
+                parentReportAction: inviteTeamParentReportAction,
+            },
         );
         setWorkspaceInviteMessageDraft(policyID, welcomeNote ?? null);
         clearDraftValues(ONYXKEYS.FORMS.WORKSPACE_INVITE_MESSAGE_FORM);

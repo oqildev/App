@@ -27,6 +27,8 @@ import {getDefaultApprover, isPolicyAdmin, isSubmitPolicy} from '@libs/PolicyUti
 import * as ReportActionsUtils from '@libs/ReportActionsUtils';
 import * as ReportUtils from '@libs/ReportUtils';
 import * as FormActions from '@userActions/FormActions';
+import {getFinishOnboardingTaskOnyxData} from '@userActions/Task';
+import type {OnboardingTaskInfo} from '@userActions/Task';
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
 import type {ImportedSpreadsheetMemberData, InvitedEmailsToAccountIDs, Policy, PolicyEmployee, PolicyOwnershipChangeChecks, Report, ReportAction, ReportActions} from '@src/types/onyx';
@@ -942,6 +944,7 @@ function addMembersToWorkspace(
     approverEmail?: string,
     // TODO: Remove optional (?) once all callers are updated in follow-up PRs of https://github.com/Expensify/App/issues/66578
     reportActionsList?: OnyxCollection<ReportActions>,
+    inviteTeamTaskInfo?: OnboardingTaskInfo,
 ) {
     if (!policy?.id) {
         Log.warn('addMembersToWorkspace: Policy ID is undefined');
@@ -973,6 +976,23 @@ function addMembersToWorkspace(
     if (!isEmptyObject(membersChats.reportCreationData)) {
         params.reportCreationData = JSON.stringify(membersChats.reportCreationData);
     }
+
+    // Auto-complete the "Invite your team" onboarding task by piggy-backing its completion onto this request.
+    if (inviteTeamTaskInfo?.taskReport) {
+        const finishOnboardingTaskData = getFinishOnboardingTaskOnyxData(
+            inviteTeamTaskInfo.taskReport,
+            inviteTeamTaskInfo.taskParentReport,
+            inviteTeamTaskInfo.isParentReportArchived,
+            currentUser.accountID,
+            inviteTeamTaskInfo.hasOutstandingChildTask,
+            inviteTeamTaskInfo.parentReportAction,
+            undefined,
+        );
+        optimisticData.push(...(finishOnboardingTaskData.optimisticData ?? []));
+        successData.push(...(finishOnboardingTaskData.successData ?? []));
+        failureData.push(...(finishOnboardingTaskData.failureData ?? []));
+    }
+
     API.write(WRITE_COMMANDS.ADD_MEMBERS_TO_WORKSPACE, params, {optimisticData, successData, failureData});
 }
 

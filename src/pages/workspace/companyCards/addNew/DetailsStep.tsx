@@ -11,8 +11,10 @@ import TextInput from '@components/TextInput';
 import TextLink from '@components/TextLink';
 import useAutoFocusInput from '@hooks/useAutoFocusInput';
 import type {CombinedCardFeeds} from '@hooks/useCardFeeds';
+import useCurrentUserPersonalDetails from '@hooks/useCurrentUserPersonalDetails';
 import {useMemoizedLazyExpensifyIcons} from '@hooks/useLazyAsset';
 import useLocalize from '@hooks/useLocalize';
+import useOnboardingTaskInformation from '@hooks/useOnboardingTaskInformation';
 import useOnyx from '@hooks/useOnyx';
 import useTheme from '@hooks/useTheme';
 import useThemeStyles from '@hooks/useThemeStyles';
@@ -47,6 +49,14 @@ function DetailsStep({policyID, cardFeeds, workspaceAccountID}: DetailsStepProps
 
     const [addNewCard] = useOnyx(ONYXKEYS.ADD_NEW_COMPANY_CARD);
     const [lastSelectedFeed] = useOnyx(`${ONYXKEYS.COLLECTION.LAST_SELECTED_FEED}${policyID}`);
+    const currentUserPersonalDetails = useCurrentUserPersonalDetails();
+    const {
+        taskReport: connectCorporateCardTaskReport,
+        taskParentReport: connectCorporateCardTaskParentReport,
+        isOnboardingTaskParentReportArchived: isConnectCorporateCardTaskParentReportArchived,
+        hasOutstandingChildTask: connectCorporateCardHasOutstandingChildTask,
+        parentReportAction: connectCorporateCardParentReportAction,
+    } = useOnboardingTaskInformation(CONST.ONBOARDING_TASK_TYPE.CONNECT_CORPORATE_CARD);
 
     const feedProvider = addNewCard?.data?.feedType;
     const isStripeFeedProvider = feedProvider === CONST.COMPANY_CARD.FEED_BANK_NAME.STRIPE;
@@ -63,7 +73,22 @@ function DetailsStep({policyID, cardFeeds, workspaceAccountID}: DetailsStepProps
             bankName: addNewCard.data.bankName ?? getBankName(addNewCard.data.feedType),
         };
 
-        addNewCompanyCardsFeed(policyID, workspaceAccountID, addNewCard.data.feedType, feedDetails, cardFeeds, lastSelectedFeed);
+        addNewCompanyCardsFeed(
+            policyID,
+            workspaceAccountID,
+            addNewCard.data.feedType,
+            feedDetails,
+            cardFeeds,
+            lastSelectedFeed,
+            {
+                taskReport: connectCorporateCardTaskReport,
+                taskParentReport: connectCorporateCardTaskParentReport,
+                isParentReportArchived: isConnectCorporateCardTaskParentReportArchived,
+                hasOutstandingChildTask: connectCorporateCardHasOutstandingChildTask,
+                parentReportAction: connectCorporateCardParentReportAction,
+            },
+            currentUserPersonalDetails.accountID,
+        );
         Navigation.goBack(ROUTES.WORKSPACE_COMPANY_CARDS.getRoute(policyID));
     };
 

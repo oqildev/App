@@ -11798,6 +11798,10 @@ function prepareOnboardingOnyxData({
     let addExpenseApprovalsTaskReportID;
     let setupTagsTaskReportID;
     let setupCategoriesAndTagsTaskReportID;
+    let viewTourTaskReportID;
+    let setupCategoriesTaskReportID;
+    let inviteTeamTaskReportID;
+    let connectCorporateCardTaskReportID;
     const tasks = onboardingMessage.tasks;
     const tasksData = tasks
         .filter((task) => {
@@ -11865,6 +11869,18 @@ function prepareOnboardingOnyxData({
             }
             if (task.type === CONST.ONBOARDING_TASK_TYPE.SETUP_CATEGORIES_AND_TAGS) {
                 setupCategoriesAndTagsTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.VIEW_TOUR) {
+                viewTourTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.SETUP_CATEGORIES) {
+                setupCategoriesTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.INVITE_TEAM) {
+                inviteTeamTaskReportID = currentTask.reportID;
+            }
+            if (task.type === CONST.ONBOARDING_TASK_TYPE.CONNECT_CORPORATE_CARD) {
+                connectCorporateCardTaskReportID = currentTask.reportID;
             }
 
             return {
@@ -12078,6 +12094,10 @@ function prepareOnboardingOnyxData({
                 addExpenseApprovals: addExpenseApprovalsTaskReportID,
                 setupTags: setupTagsTaskReportID,
                 setupCategoriesAndTags: setupCategoriesAndTagsTaskReportID,
+                viewTour: viewTourTaskReportID,
+                setupCategories: setupCategoriesTaskReportID,
+                inviteTeam: inviteTeamTaskReportID,
+                connectCorporateCard: connectCorporateCardTaskReportID,
             },
         },
     );
@@ -12151,6 +12171,10 @@ function prepareOnboardingOnyxData({
                 addExpenseApprovals: null,
                 setupCategoriesAndTags: null,
                 setupTags: null,
+                viewTour: null,
+                setupCategories: null,
+                inviteTeam: null,
+                connectCorporateCard: null,
             },
         },
     );
