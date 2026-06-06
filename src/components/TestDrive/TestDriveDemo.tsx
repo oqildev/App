@@ -39,10 +39,12 @@ function TestDriveDemo() {
     const [betas] = useOnyx(ONYXKEYS.BETAS);
     const [delegateEmail] = useOnyx(ONYXKEYS.ACCOUNT, {selector: delegateEmailSelector});
     const {
+        taskReportID: viewTourTaskReportID,
         taskReport: viewTourTaskReport,
         taskParentReport: viewTourTaskParentReport,
         isOnboardingTaskParentReportArchived: isViewTourTaskParentReportArchived,
         hasOutstandingChildTask,
+        isLoadingTaskReport: isLoadingViewTourTaskReport,
     } = useOnboardingTaskInformation(CONST.ONBOARDING_TASK_TYPE.VIEW_TOUR);
     const {testDrive} = useOnboardingMessages();
     const currentUserPersonalDetails = useCurrentUserPersonalDetails();
@@ -56,6 +58,12 @@ function TestDriveDemo() {
 
     useEffect(() => {
         if (hasSeenTour) {
+            return;
+        }
+        // A viewTour task exists for this account but its report hasn't hydrated into Onyx yet.
+        // Wait for it instead of taking the no-task fallback below, which would set selfTourViewed
+        // and permanently skip completing the task once hasSeenTour flips to true.
+        if (viewTourTaskReportID && (isLoadingViewTourTaskReport || !viewTourTaskReport)) {
             return;
         }
         if (!viewTourTaskReport) {
@@ -83,6 +91,8 @@ function TestDriveDemo() {
         );
     }, [
         hasSeenTour,
+        viewTourTaskReportID,
+        isLoadingViewTourTaskReport,
         viewTourTaskReport,
         viewTourTaskParentReport,
         isViewTourTaskParentReportArchived,

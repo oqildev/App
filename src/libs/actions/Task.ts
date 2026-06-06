@@ -1495,8 +1495,7 @@ function completeTestDriveTask(
     delegateEmail: string | undefined,
     shouldUpdateSelfTourViewedOnlyLocally = false,
 ) {
-    setSelfTourViewed(shouldUpdateSelfTourViewedOnlyLocally);
-    getFinishOnboardingTaskOnyxData(
+    const finishOnboardingTaskData = getFinishOnboardingTaskOnyxData(
         viewTourTaskReport,
         viewTourTaskParentReport,
         isViewTourTaskParentReportArchived,
@@ -1505,6 +1504,12 @@ function completeTestDriveTask(
         parentReportAction,
         delegateEmail,
     );
+    // Only mark the tour as viewed once the task has actually been completed. If this runs before the task
+    // report/parent has hydrated, getFinishOnboardingTaskOnyxData returns {} — keeping selfTourViewed unset
+    // lets the effect retry and complete the task instead of permanently skipping it.
+    if (!isEmptyObject(finishOnboardingTaskData)) {
+        setSelfTourViewed(shouldUpdateSelfTourViewedOnlyLocally);
+    }
 }
 
 /**
