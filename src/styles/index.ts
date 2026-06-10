@@ -999,6 +999,7 @@ const staticStyles = (theme: ThemeColors) =>
             height: variables.componentSizeNormal,
             justifyContent: 'center',
             width: variables.componentSizeNormal,
+            backgroundColor: 'transparent',
         },
 
         visuallyHidden: {
