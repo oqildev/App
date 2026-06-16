@@ -1,5 +1,5 @@
 import {activeAdminPoliciesSelector} from '@selectors/Policy';
-import React, {useCallback} from 'react';
+import React, {useCallback, useEffect} from 'react';
 import {View} from 'react-native';
 import type {OnyxCollection} from 'react-native-onyx';
 import {loadIllustration} from '@components/Icon/IllustrationLoader';
@@ -15,6 +15,7 @@ import useLocalize from '@hooks/useLocalize';
 import useOnyx from '@hooks/useOnyx';
 import useTheme from '@hooks/useTheme';
 import useThemeStyles from '@hooks/useThemeStyles';
+import {clearTwoFactorAuthData} from '@libs/actions/TwoFactorAuthActions';
 import Navigation from '@libs/Navigation/Navigation';
 import {hasPolicyWithXeroConnection} from '@libs/PolicyUtils';
 import CONST from '@src/CONST';
@@ -37,7 +38,20 @@ function EnabledPage() {
         [login],
     );
     const [adminPolicies] = useOnyx(ONYXKEYS.COLLECTION.POLICY, {selector});
+    const [account] = useOnyx(ONYXKEYS.ACCOUNT);
     const {translate} = useLocalize();
+
+    // When 2FA is required before onboarding is finished, an account with requiresTwoFactorAuth=true is routed
+    // straight to this Enabled page after verifying the code — the Success step (which normally clears the flag) is
+    // skipped because 2FA already reads as enabled. Reaching this page means setup is complete, so clear
+    // twoFactorAuthSetupInProgress here; otherwise RequireTwoFactorAuthenticationOverlay keeps reappearing and
+    // onboarding never resumes. No-op in the normal flow, where the Success step already cleared it.
+    useEffect(() => {
+        if (!account?.twoFactorAuthSetupInProgress) {
+            return;
+        }
+        clearTwoFactorAuthData(true);
+    }, [account?.twoFactorAuthSetupInProgress]);
     const {showConfirmModal} = useConfirmModal();
     const showTwoFactorAuthRequireModal = () => {
         return showConfirmModal({

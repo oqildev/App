@@ -161,12 +161,24 @@ const OnboardingGuard: NavigationGuard = {
     name: 'OnboardingGuard',
 
     evaluate: (state, action, context): GuardResult => {
+        const isOnboardingCompleted = hasCompletedGuidedSetupFlowSelector(onboarding) ?? false;
+
+        // A user can be required to set up 2FA before they finish onboarding (e.g. a domain that enforces 2FA after a
+        // migration). While that required-2FA gate is pending, 2FA must be completed first (see issue #91985): don't
+        // redirect this navigation back into onboarding, which bounces the "Enable two-factor authentication" CTA and
+        // leaves the gate looking frozen. This predicate mirrors `useShouldShowRequire2FAPage`, so it is only true while
+        // RequireTwoFactorAuthenticationOverlay is active — and that overlay still covers any non-2FA screen, so this
+        // cannot be used to skip onboarding. Once setup finishes the flags clear and onboarding enforcement resumes.
+        const isRequired2FASetupPending = (!!account?.needsTwoFactorAuthSetup && !account?.requiresTwoFactorAuth) || (!!account?.twoFactorAuthSetupInProgress && !isOnboardingCompleted);
+        if (isRequired2FASetupPending) {
+            return {type: 'ALLOW'};
+        }
+
         if (shouldPreventReset(state, action)) {
             return {type: 'BLOCK', reason: 'Cannot reset to non-onboarding screen while on onboarding'};
         }
 
         const isTransitioning = context.currentUrl?.includes(ROUTES.TRANSITION_BETWEEN_APPS);
-        const isOnboardingCompleted = hasCompletedGuidedSetupFlowSelector(onboarding) ?? false;
         const isMigratedUser = tryNewDot?.hasBeenAddedToNudgeMigration ?? false;
         const isSingleEntry = hybridApp?.isSingleNewDotEntry ?? false;
         const needsExplanationModal = (CONFIG.IS_HYBRID_APP && tryNewDot?.isHybridAppOnboardingCompleted !== true) ?? false;

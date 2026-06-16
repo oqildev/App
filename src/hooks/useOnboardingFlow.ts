@@ -85,12 +85,20 @@ function useOnboardingFlowRouter() {
                     return;
                 }
 
+                // A user can be required to set up 2FA before they finish onboarding (e.g. a domain that enforces 2FA
+                // after a migration). While that required-2FA gate is pending, 2FA must be completed first (see issue
+                // #91985). Forcing the onboarding flow here (via resetRoot) would fight the 2FA navigation and trap the
+                // user in a redirect loop, so defer onboarding until setup finishes. This predicate mirrors
+                // `useShouldShowRequire2FAPage`; once the flags clear, this effect re-runs and resumes onboarding.
+                const isRequired2FASetupPending =
+                    (!!account?.needsTwoFactorAuthSetup && !account?.requiresTwoFactorAuth) || (!!account?.twoFactorAuthSetupInProgress && isOnboardingCompleted === false);
+
                 // Explicitly start the onboarding flow when onboarding is not completed.
                 // We use startOnboardingFlow (which calls resetRoot) instead of Navigation.navigate because
                 // navigate goes through the router where OnboardingGuard would block the navigation.
                 // waitForProtectedRoutes ensures navigation is ready, which is critical during fresh login.
                 // Skip when HybridApp explanation modal is active (OldDot-transitioning users).
-                if (isOnboardingCompleted === false && !(CONFIG.IS_HYBRID_APP && isHybridAppOnboardingCompleted === false)) {
+                if (isOnboardingCompleted === false && !isRequired2FASetupPending && !(CONFIG.IS_HYBRID_APP && isHybridAppOnboardingCompleted === false)) {
                     Navigation.waitForProtectedRoutes().then(() => {
                         startOnboardingFlow({
                             onboardingValuesParam: onboardingValues ?? undefined,
@@ -125,6 +133,9 @@ function useOnboardingFlowRouter() {
         account?.isFromPublicDomain,
         account?.hasAccessibleDomainPolicies,
         account?.validated,
+        account?.needsTwoFactorAuthSetup,
+        account?.requiresTwoFactorAuth,
+        account?.twoFactorAuthSetupInProgress,
         onboardingCompanySize,
         onboardingPurposeSelected,
         onboardingInitialPath,
