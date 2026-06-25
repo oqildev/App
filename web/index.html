@@ -66,6 +66,12 @@
            overflow: hidden;
            touch-action: none;
         }
+        /* A zoomed-in PDF viewer drives its own pan via JS gestures. Disable native touch handling on that
+           subtree so the browser's pan (from the global `* { touch-action: pan-x pan-y }`) doesn't fight it
+           and make dragging feel janky on Android Chrome. Only active while a PDF is zoomed (see PDFView). */
+        [data-pdf-zoomed='true'], [data-pdf-zoomed='true'] * {
+            touch-action: none;
+        }
         [data-drag-area='true'] {
             -webkit-app-region: drag;
         }
