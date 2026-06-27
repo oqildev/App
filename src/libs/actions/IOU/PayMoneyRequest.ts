@@ -1100,12 +1100,14 @@ function payInvoice({
         payAsBusiness,
     };
 
-    if (paymentMethod === CONST.PAYMENT_METHODS.PERSONAL_BANK_ACCOUNT) {
-        params.bankAccountID = methodID;
-    }
-
     if (paymentMethod === CONST.PAYMENT_METHODS.DEBIT_CARD) {
         params.fundID = methodID;
+    } else if (methodID != null) {
+        // Both personal and business bank accounts settle via bankAccountID. A business bank account's accountType is
+        // 'businessBankAccount' (or undefined) rather than 'bankAccount', so attach the selected methodID for any non-card
+        // method instead of matching a single accountType string. Without this, paying an invoice with a business bank
+        // account sent PayInvoice with no bankAccountID, so the request failed (see issue #88464).
+        params.bankAccountID = methodID;
     }
 
     if (policyID) {
