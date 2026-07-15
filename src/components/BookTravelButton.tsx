@@ -9,7 +9,7 @@ import usePolicy from '@hooks/usePolicy';
 import useStyleUtils from '@hooks/useStyleUtils';
 import useThemeStyles from '@hooks/useThemeStyles';
 
-import {cleanupTravelProvisioningSession, requestTravelAccess, setTravelProvisioningNextStep} from '@libs/actions/Travel';
+import {cleanupTravelProvisioningSession, clearResumeBookTravel, requestTravelAccess, setResumeBookTravel, setTravelProvisioningNextStep} from '@libs/actions/Travel';
 import getTravelAcceptTermsRoute from '@libs/getTravelAcceptTermsRoute';
 import {isEmailPublicDomain} from '@libs/LoginUtils';
 import createDynamicRoute from '@libs/Navigation/helpers/dynamicRoutesUtils/createDynamicRoute';
@@ -32,7 +32,7 @@ import type {ReactElement} from 'react';
 
 import {emailSelector} from '@selectors/Session';
 import {Str} from 'expensify-common';
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 
 import Button from './Button';
 import DotIndicatorMessage from './DotIndicatorMessage';
@@ -93,13 +93,11 @@ function BookTravelButton({
     const {isBetaEnabled} = usePermissions();
     const {showConfirmModal} = useConfirmModal();
     const [privatePersonalDetails] = useOnyx(ONYXKEYS.PRIVATE_PERSONAL_DETAILS);
+    const [resumeBookTravelPolicyID] = useOnyx(ONYXKEYS.RESUME_BOOK_TRAVEL);
     const [policies] = useOnyx(ONYXKEYS.COLLECTION.POLICY);
     const {login: currentUserLogin} = useCurrentUserPersonalDetails();
     const activePolicies = getActivePolicies(policies, currentUserLogin);
     const groupPaidPolicies = activePolicies.filter((activePolicy) => activePolicy.type !== CONST.POLICY.TYPE.PERSONAL && isPaidGroupPolicy(activePolicy));
-
-    // Ref to track if we should auto-resume the booking flow after returning from TravelLegalNamePage
-    const shouldResumeBookingRef = useRef(false);
 
     const navigateToPublicDomainError = () => {
         const dynamicSuffix = hasPolicyIDInActiveRoute() ? DYNAMIC_ROUTES.TRAVEL_PUBLIC_DOMAIN_ERROR.path : DYNAMIC_ROUTES.TRAVEL_PUBLIC_DOMAIN_ERROR.getRoute(activePolicyID);
@@ -144,7 +142,11 @@ function BookTravelButton({
         }
 
         if (areTravelPersonalDetailsMissing(privatePersonalDetails)) {
-            shouldResumeBookingRef.current = true;
+            // Persist the resume intent outside this component: navigating to the legal-name step unmounts
+            // BookTravelButton (Travel RHP -> Workspace RHP), so a component ref would be discarded.
+            if (activePolicyID) {
+                setResumeBookTravel(activePolicyID);
+            }
             Navigation.navigate(ROUTES.WORKSPACE_TRAVEL_MISSING_PERSONAL_DETAILS.getRoute(policy?.id ?? String(CONST.DEFAULT_NUMBER_ID)));
             return;
         }
@@ -226,18 +228,20 @@ function BookTravelButton({
         }
     };
 
-    // Auto-resume the booking flow after returning from TravelLegalNamePage
-    // When the user saves their legal name and navigates back, privatePersonalDetails updates
-    // and this effect re-triggers bookATrip() to continue the booking flow
+    // Auto-resume the booking flow after the user saves their legal name in TravelLegalNamePage.
+    // The resume intent is persisted in Onyx (RESUME_BOOK_TRAVEL) so it survives this component being
+    // unmounted and re-mounted while the legal-name step is open. Once the persisted policy matches and
+    // the legal name is no longer missing, clear the flag and re-run bookATrip() to continue the flow.
     useEffect(() => {
-        if (!shouldResumeBookingRef.current || areTravelPersonalDetailsMissing(privatePersonalDetails)) {
+        if (!activePolicyID || resumeBookTravelPolicyID !== activePolicyID || areTravelPersonalDetailsMissing(privatePersonalDetails)) {
             return;
         }
 
-        shouldResumeBookingRef.current = false;
+        clearResumeBookTravel();
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- intentionally resuming the imperative Book Travel navigation flow once the persisted legal name is saved
         bookATrip();
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- we only want to trigger this effect when privatePersonalDetails changes
-    }, [privatePersonalDetails]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- we only want to trigger this effect when privatePersonalDetails or the persisted resume flag changes
+    }, [privatePersonalDetails, resumeBookTravelPolicyID, activePolicyID]);
 
     return (
         <>

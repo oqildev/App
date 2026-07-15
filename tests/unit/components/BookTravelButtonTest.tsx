@@ -5,7 +5,7 @@ import ComposeProviders from '@components/ComposeProviders';
 import {LocaleContextProvider} from '@components/LocaleContextProvider';
 import OnyxListItemProvider from '@components/OnyxListItemProvider';
 
-import {setTravelProvisioningNextStep} from '@libs/actions/Travel';
+import {clearResumeBookTravel, setResumeBookTravel, setTravelProvisioningNextStep} from '@libs/actions/Travel';
 import Navigation from '@libs/Navigation/Navigation';
 
 import CONST from '@src/CONST';
@@ -43,6 +43,8 @@ jest.mock('@libs/actions/Travel', () => {
         setTravelProvisioningNextStep: jest.fn(),
         cleanupTravelProvisioningSession: jest.fn(),
         requestTravelAccess: jest.fn(),
+        setResumeBookTravel: jest.fn(),
+        clearResumeBookTravel: jest.fn(),
     };
 });
 
@@ -136,6 +138,74 @@ describe('BookTravelButton', () => {
             expect(setTravelProvisioningNextStep).toHaveBeenCalledWith(TCS_ROUTE);
             // And the admin is sent to verify their account first
             expect(Navigation.navigate).toHaveBeenCalledWith(expect.stringContaining('travel/verify-account'));
+        });
+    });
+
+    describe('when the legal name is missing (issue #92305)', () => {
+        it('persists the resume intent and opens the missing legal-name step', async () => {
+            // Given a provisioned workspace and a validated admin on a private domain, but no legal name saved yet
+            await act(async () => {
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.POLICY}${POLICY_ID}`, provisionedPolicy);
+                await Onyx.merge(ONYXKEYS.ACCOUNT, {validated: true, primaryLogin: USER_LOGIN});
+                await Onyx.merge(ONYXKEYS.NVP_TRAVEL_SETTINGS, {hasAcceptedTerms: false});
+                await waitForBatchedUpdatesWithAct();
+            });
+            renderBookTravelButton();
+            await waitForBatchedUpdatesWithAct();
+
+            // When the admin presses the book travel button
+            fireEvent.press(screen.getByText('Book a trip'));
+            await waitForBatchedUpdatesWithAct();
+
+            // Then the resume intent is persisted for this policy (so it survives BookTravelButton unmounting)
+            expect(setResumeBookTravel).toHaveBeenCalledWith(POLICY_ID);
+            // And the missing legal-name step is opened
+            expect(Navigation.navigate).toHaveBeenCalledWith(expect.stringContaining('missing-personal-details'));
+        });
+
+        it('auto-resumes the booking flow once the legal name is saved', async () => {
+            // Given the Book Travel flow was interrupted at the missing legal-name step: the resume intent is
+            // persisted for this policy while the legal name is still missing
+            await act(async () => {
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.POLICY}${POLICY_ID}`, provisionedPolicy);
+                await Onyx.merge(ONYXKEYS.ACCOUNT, {validated: true, primaryLogin: USER_LOGIN});
+                await Onyx.merge(ONYXKEYS.NVP_TRAVEL_SETTINGS, {hasAcceptedTerms: false});
+                await Onyx.set(ONYXKEYS.RESUME_BOOK_TRAVEL, POLICY_ID);
+                await waitForBatchedUpdatesWithAct();
+            });
+            renderBookTravelButton();
+            await waitForBatchedUpdatesWithAct();
+
+            // The flow does not resume while the legal name is still missing
+            expect(Navigation.navigate).not.toHaveBeenCalled();
+
+            // When the user saves their legal name (privatePersonalDetails updates, mirroring the return from the legal-name step)
+            await act(async () => {
+                await Onyx.merge(ONYXKEYS.PRIVATE_PERSONAL_DETAILS, {legalFirstName: 'Test', legalLastName: 'User'});
+                await waitForBatchedUpdatesWithAct();
+            });
+
+            // Then the persisted intent is cleared and the booking flow continues to the terms screen
+            expect(clearResumeBookTravel).toHaveBeenCalled();
+            expect(Navigation.navigate).toHaveBeenCalledWith(TCS_ROUTE);
+        });
+
+        it('does not resume for a different policy than the persisted one', async () => {
+            // Given the resume intent is persisted for a DIFFERENT policy
+            await act(async () => {
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.POLICY}${POLICY_ID}`, provisionedPolicy);
+                await Onyx.merge(ONYXKEYS.ACCOUNT, {validated: true, primaryLogin: USER_LOGIN});
+                await Onyx.merge(ONYXKEYS.NVP_TRAVEL_SETTINGS, {hasAcceptedTerms: false});
+                await Onyx.merge(ONYXKEYS.PRIVATE_PERSONAL_DETAILS, {legalFirstName: 'Test', legalLastName: 'User'});
+                await Onyx.set(ONYXKEYS.RESUME_BOOK_TRAVEL, 'someOtherPolicyID');
+                await waitForBatchedUpdatesWithAct();
+            });
+            renderBookTravelButton();
+            await waitForBatchedUpdatesWithAct();
+
+            // Then this button does not auto-resume, because the persisted policy does not match its own
+            expect(Navigation.navigate).not.toHaveBeenCalled();
+            expect(clearResumeBookTravel).not.toHaveBeenCalled();
         });
     });
 

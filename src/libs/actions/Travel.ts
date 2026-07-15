@@ -101,4 +101,16 @@ function cleanupTravelProvisioningSession() {
     Onyx.merge(ONYXKEYS.TRAVEL_PROVISIONING, null);
 }
 
-export {acceptSpotnanaTerms, cleanupTravelProvisioningSession, requestTravelAccess, setTravelProvisioningNextStep, setTravelProvisioningTaxID};
+/**
+ * Persist the intent to resume the Book Travel flow after the user saves their missing legal name.
+ * This survives BookTravelButton being unmounted while the legal-name step is open.
+ */
+function setResumeBookTravel(policyID: string) {
+    Onyx.set(ONYXKEYS.RESUME_BOOK_TRAVEL, policyID);
+}
+
+function clearResumeBookTravel() {
+    Onyx.set(ONYXKEYS.RESUME_BOOK_TRAVEL, null);
+}
+
+export {acceptSpotnanaTerms, cleanupTravelProvisioningSession, requestTravelAccess, setTravelProvisioningNextStep, setTravelProvisioningTaxID, setResumeBookTravel, clearResumeBookTravel};
