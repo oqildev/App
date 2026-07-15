@@ -2692,6 +2692,9 @@ type TravelNavigatorParamList = {
     [SCREENS.TRAVEL.MY_TRIPS]: {
         policyID: string;
     };
+    [SCREENS.TRAVEL.MISSING_PERSONAL_DETAILS]: {
+        policyID: string;
+    };
     [SCREENS.TRAVEL.TRAVEL_DOT_LINK_WEB_VIEW]: {
         token: string;
         isTestAccount?: string;

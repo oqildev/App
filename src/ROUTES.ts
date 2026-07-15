@@ -3382,6 +3382,10 @@ const ROUTES = {
         route: 'travel',
         getRoute: (policyID?: string) => `travel?${policyID ? `policyID=${policyID}` : ''}` as const,
     },
+    TRAVEL_MISSING_PERSONAL_DETAILS: {
+        route: 'travel/missing-personal-details/:policyID',
+        getRoute: (policyID: string) => `travel/missing-personal-details/${policyID}` as const,
+    },
     TRAVEL_DOT_LINK_WEB_VIEW: {
         route: 'travel-dot-link',
         getRoute: (token: string, isTestAccount?: boolean, postLoginPath?: string) => {

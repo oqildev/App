@@ -1918,6 +1918,7 @@ const config: LinkingOptions<RootNavigatorParamList>['config'] = {
                 [SCREENS.RIGHT_MODAL.TRAVEL]: {
                     screens: {
                         [SCREENS.TRAVEL.MY_TRIPS]: ROUTES.TRAVEL_MY_TRIPS.route,
+                        [SCREENS.TRAVEL.MISSING_PERSONAL_DETAILS]: ROUTES.TRAVEL_MISSING_PERSONAL_DETAILS.route,
                         [SCREENS.TRAVEL.TRAVEL_DOT_LINK_WEB_VIEW]: ROUTES.TRAVEL_DOT_LINK_WEB_VIEW.route,
                         [SCREENS.TRAVEL.DYNAMIC_UPGRADE]: DYNAMIC_ROUTES.TRAVEL_UPGRADE.path,
                         [SCREENS.TRAVEL.DYNAMIC_TCS]: DYNAMIC_ROUTES.TRAVEL_TCS.path,

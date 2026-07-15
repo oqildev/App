@@ -232,6 +232,7 @@ const MoneyRequestModalStackNavigator = createModalStackNavigator<MoneyRequestNa
 
 const TravelModalStackNavigator = createModalStackNavigator<TravelNavigatorParamList>({
     [SCREENS.TRAVEL.MY_TRIPS]: () => require<ReactComponentModule>('../../../../pages/Travel/MyTripsPage').default,
+    [SCREENS.TRAVEL.MISSING_PERSONAL_DETAILS]: () => require<ReactComponentModule>('../../../../pages/Travel/TravelLegalNamePage').default,
     [SCREENS.TRAVEL.TRAVEL_DOT_LINK_WEB_VIEW]: () => require<ReactComponentModule>('../../../../pages/Travel/TravelDotLinkWebview').default,
     [SCREENS.TRAVEL.DYNAMIC_TCS]: () => require<ReactComponentModule>('../../../../pages/Travel/DynamicTravelTerms').default,
     [SCREENS.TRAVEL.DYNAMIC_UPGRADE]: () => require<ReactComponentModule>('../../../../pages/Travel/DynamicTravelUpgrade').default,

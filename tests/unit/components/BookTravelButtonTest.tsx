@@ -139,6 +139,29 @@ describe('BookTravelButton', () => {
         });
     });
 
+    describe('when the legal name is missing (issue #92305)', () => {
+        it('opens the missing legal-name step inside the Travel modal stack, not the Workspace stack', async () => {
+            // Given a provisioned workspace and a validated admin on a private domain, but no legal name saved yet
+            await act(async () => {
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.POLICY}${POLICY_ID}`, provisionedPolicy);
+                await Onyx.merge(ONYXKEYS.ACCOUNT, {validated: true, primaryLogin: USER_LOGIN});
+                await Onyx.merge(ONYXKEYS.NVP_TRAVEL_SETTINGS, {hasAcceptedTerms: false});
+                await waitForBatchedUpdatesWithAct();
+            });
+            renderBookTravelButton();
+            await waitForBatchedUpdatesWithAct();
+
+            // When the admin presses the book travel button
+            fireEvent.press(screen.getByText('Book a trip'));
+            await waitForBatchedUpdatesWithAct();
+
+            // Then it opens the legal-name step in the Travel modal stack (so the Travel RHP is not torn down),
+            // NOT the Workspace modal stack that caused the flow to drop out
+            expect(Navigation.navigate).toHaveBeenCalledWith(expect.stringContaining('travel/missing-personal-details'));
+            expect(Navigation.navigate).not.toHaveBeenCalledWith(expect.stringContaining('workspaces/'));
+        });
+    });
+
     describe('when the user has a personal-email login', () => {
         it('shows the public-domain error before the missing legal-name step even when legal details are missing', async () => {
             // Given a user logged in with a public-domain email and no legal name set yet

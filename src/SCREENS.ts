@@ -43,6 +43,7 @@ const SCREENS = {
         TRAVEL_DOT_LINK_WEB_VIEW: 'Travel_DotLinkWebView',
         VERIFY_ACCOUNT: 'Travel_VerifyAccount',
         MISSING_PERSONAL_DETAILS_CONFIRM_MAGIC_CODE: 'Travel_MissingPersonalDetails_ConfirmMagicCode',
+        MISSING_PERSONAL_DETAILS: 'Travel_MissingPersonalDetails',
     },
     SEARCH: {
         ROOT: 'Search_Root',

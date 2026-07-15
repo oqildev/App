@@ -145,7 +145,9 @@ function BookTravelButton({
 
         if (areTravelPersonalDetailsMissing(privatePersonalDetails)) {
             shouldResumeBookingRef.current = true;
-            Navigation.navigate(ROUTES.WORKSPACE_TRAVEL_MISSING_PERSONAL_DETAILS.getRoute(policy?.id ?? String(CONST.DEFAULT_NUMBER_ID)));
+            // Open the legal-name step inside the Travel modal stack (same navigator as this button) so the
+            // Travel RHP is NOT torn down — the button stays mounted and its resume effect fires on goBack.
+            Navigation.navigate(ROUTES.TRAVEL_MISSING_PERSONAL_DETAILS.getRoute(policy?.id ?? String(CONST.DEFAULT_NUMBER_ID)));
             return;
         }
 
