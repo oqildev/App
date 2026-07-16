@@ -4,6 +4,7 @@ import TextInput from '@components/TextInput';
 import type {BaseTextInputRef} from '@components/TextInput/BaseTextInput/types';
 
 import useAutoFocusInput from '@hooks/useAutoFocusInput';
+import useFillAvailableAutoGrowHeight from '@hooks/useFillAvailableAutoGrowHeight';
 import useLocalize from '@hooks/useLocalize';
 import useThemeStyles from '@hooks/useThemeStyles';
 
@@ -28,6 +29,12 @@ type TextInputFilterContentProps = {
     largeButton?: boolean;
     autoFocus?: boolean;
     style?: StyleProp<ViewStyle>;
+
+    /**
+     * Whether the input should grow into the free space below it instead of staying a single line.
+     * Only safe where this content owns the full height of its panel, so the wide-screen popover leaves it off.
+     */
+    shouldFillAvailableHeight?: boolean;
     onChange: (value: string | undefined) => void;
 };
 
@@ -35,7 +42,7 @@ function isTextInput(element: BaseTextInputRef | RNTextInput | null): element is
     return !!element && 'isFocused' in element;
 }
 
-function TextInputFilterContent({filterKey, value: initialValue, autoFocus, largeButton, style, onChange}: TextInputFilterContentProps) {
+function TextInputFilterContent({filterKey, value: initialValue, autoFocus, largeButton, style, shouldFillAvailableHeight, onChange}: TextInputFilterContentProps) {
     const {translate} = useLocalize();
     const styles = useThemeStyles();
     const [value, setValue] = useState(initialValue);
@@ -43,25 +50,33 @@ function TextInputFilterContent({filterKey, value: initialValue, autoFocus, larg
     const label = translate(FILTER_VIEW_MAP[filterKey].labelKey);
     const {inputCallbackRef} = useAutoFocusInput();
     const error = useTextFilterValidation(filterKey, value);
+    const {onLayout, maxAutoGrowHeight} = useFillAvailableAutoGrowHeight();
 
     return (
         <View style={[styles.flex1, styles.justifyContentBetween, style]}>
-            <TextInput
-                ref={(ref) => {
-                    if (!autoFocus || !isTextInput(ref)) {
-                        return;
-                    }
-                    inputCallbackRef(ref);
-                }}
-                placeholder={label}
-                value={value}
-                errorText={error}
-                hasError={!!error}
-                onChangeText={setValue}
-                accessibilityLabel={label}
-                role={CONST.ROLE.PRESENTATION}
-                containerStyles={[styles.ph5]}
-            />
+            <View
+                style={shouldFillAvailableHeight ? styles.flex1 : undefined}
+                onLayout={shouldFillAvailableHeight ? onLayout : undefined}
+            >
+                <TextInput
+                    ref={(ref) => {
+                        if (!autoFocus || !isTextInput(ref)) {
+                            return;
+                        }
+                        inputCallbackRef(ref);
+                    }}
+                    placeholder={label}
+                    value={value}
+                    errorText={error}
+                    hasError={!!error}
+                    onChangeText={setValue}
+                    accessibilityLabel={label}
+                    role={CONST.ROLE.PRESENTATION}
+                    containerStyles={[styles.ph5]}
+                    autoGrowHeight={shouldFillAvailableHeight}
+                    maxAutoGrowHeight={maxAutoGrowHeight}
+                />
+            </View>
             <Button
                 style={[styles.ph5, styles.pb5]}
                 success
