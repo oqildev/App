@@ -7601,6 +7601,8 @@ Fordern Sie Spesendetails wie Belege und Beschreibungen an, legen Sie Limits und
                 billableDescription: 'Spesen werden meist an Kund:innen weiterberechnet',
                 nonBillable: 'Nicht abrechenbar',
                 nonBillableDescription: 'Spesen werden gelegentlich an Kund:innen weiterberechnet',
+                billableDisabled: 'Deaktiviert',
+                billableDisabledDescription: 'Spesen werden nie an Kund:innen weiterberechnet',
                 eReceipts: 'eBelege',
                 eReceiptsHint: `eBelege werden automatisch erstellt [für die meisten Kreditkartentransaktionen in USD](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Teilnehmernachverfolgung',

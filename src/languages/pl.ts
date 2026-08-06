@@ -7538,6 +7538,8 @@ Wymagaj szczegółów wydatków, takich jak paragony i opisy, ustawiaj limity i 
                 billableDescription: 'Wydatki są najczęściej refakturowane klientom',
                 nonBillable: 'Nierozliczalne',
                 nonBillableDescription: 'Wydatki są okazjonalnie refakturowane klientom',
+                billableDisabled: 'Wyłączone',
+                billableDisabledDescription: 'Wydatki nigdy nie są refakturowane klientom',
                 eReceipts: 'eParagony',
                 eReceiptsHint: `eParagony są automatycznie tworzone [dla większości transakcji kartą kredytową w USD](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Śledzenie uczestników',

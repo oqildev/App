@@ -222,6 +222,8 @@ const CONST = {
     DEFAULT_IMAGE_FILE_NAME: 'image',
     DISABLED_MAX_EXPENSE_VALUE: 10000000000,
     POLICY_BILLABLE_MODES: {
+        // Billable tracking is turned off entirely (policy.disabledFields.defaultBillable is true)
+        DISABLED: 'billableDisabled',
         BILLABLE: 'billable',
         NON_BILLABLE: 'nonBillable',
     },

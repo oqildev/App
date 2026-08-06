@@ -7572,6 +7572,8 @@ Richiedi dettagli sulle spese come ricevute e descrizioni, imposta limiti e valo
                 billableDescription: 'Le spese sono più spesso rifatturate ai clienti',
                 nonBillable: 'Non fatturabile',
                 nonBillableDescription: 'Le spese vengono occasionalmente riaddebitate ai clienti',
+                billableDisabled: 'Disattivato',
+                billableDisabledDescription: 'Le spese non vengono mai riaddebitate ai clienti',
                 eReceipts: 'Ricevute elettroniche',
                 eReceiptsHint: `Le eReceipt vengono create automaticamente [per la maggior parte delle transazioni con carta in USD](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Monitoraggio partecipanti',

@@ -7551,6 +7551,8 @@ Exija dados de despesas como recibos e descrições, defina limites e padrões e
                 billableDescription: 'As despesas são mais frequentemente refaturadas aos clientes',
                 nonBillable: 'Não faturável',
                 nonBillableDescription: 'Despesas são ocasionalmente refaturadas para clientes',
+                billableDisabled: 'Desativado',
+                billableDisabledDescription: 'Despesas nunca são refaturadas para clientes',
                 eReceipts: 'Recibos eletrônicos',
                 eReceiptsHint: `eReceipts são criados automaticamente [para a maioria das transações em crédito em USD](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Controle de participantes',

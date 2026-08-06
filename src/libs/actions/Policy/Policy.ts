@@ -230,6 +230,8 @@ type CreateWorkspaceFromIOUPaymentOptions = {
 
 type PolicyCashExpenseMode = ValueOf<typeof CONST.POLICY.CASH_EXPENSE_REIMBURSEMENT_CHOICES>;
 
+type PolicyBillableMode = ValueOf<typeof CONST.POLICY_BILLABLE_MODES>;
+
 type CurrentUser = {
     accountID: number;
     // TODO: We'll make these required in a follow-up PR (https://github.com/Expensify/App/issues/66412)
@@ -6782,6 +6784,39 @@ function toggleBillableExpenses(policy: OnyxEntry<Policy>) {
     }
 }
 
+/**
+ * The policy stores billable as two fields, which together describe three states. Collapse them into a single mode so
+ * the UI can never present "tracking disabled" as if it were a non-billable default.
+ */
+function getPolicyBillableMode(policy: OnyxEntry<Policy>): PolicyBillableMode | undefined {
+    if (!policy) {
+        return undefined;
+    }
+
+    if (policy.disabledFields?.defaultBillable) {
+        return CONST.POLICY_BILLABLE_MODES.DISABLED;
+    }
+
+    return policy.defaultBillable ? CONST.POLICY_BILLABLE_MODES.BILLABLE : CONST.POLICY_BILLABLE_MODES.NON_BILLABLE;
+}
+
+/**
+ * Dispatch a billable mode selection to the matching API command: disabling only touches disabledFields, while the two
+ * active modes go through setPolicyBillableMode, which also clears disabledFields.defaultBillable.
+ */
+function setPolicyBillableModeChoice(policy: OnyxEntry<Policy>, billableMode: PolicyBillableMode) {
+    if (!policy) {
+        return;
+    }
+
+    if (billableMode === CONST.POLICY_BILLABLE_MODES.DISABLED) {
+        disableWorkspaceBillableExpenses(policy.id);
+        return;
+    }
+
+    setPolicyBillableMode(policy.id, billableMode === CONST.POLICY_BILLABLE_MODES.BILLABLE, policy.defaultBillable, policy.disabledFields?.defaultBillable);
+}
+
 function getWorkspaceEReceiptsEnabledOnyxData(policyID: string, enabled: boolean, currentEnabled: boolean | undefined): OnyxData<typeof ONYXKEYS.COLLECTION.POLICY> {
     return {
         optimisticData: [
@@ -7904,6 +7939,8 @@ export {
     disableWorkspaceBillableExpenses,
     getBillableExpensesPendingAction,
     toggleBillableExpenses,
+    getPolicyBillableMode,
+    setPolicyBillableModeChoice,
     setWorkspaceEReceiptsEnabled,
     verifySetupIntentAndRequestPolicyOwnerChange,
     updateInvoiceCompanyName,

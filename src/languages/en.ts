@@ -7843,6 +7843,8 @@ const translations = {
                 billableDescription: 'Expenses are most often re-billed to clients',
                 nonBillable: 'Non-billable',
                 nonBillableDescription: 'Expenses are occasionally re-billed to clients',
+                billableDisabled: 'Disabled',
+                billableDisabledDescription: 'Expenses are never re-billed to clients',
                 eReceipts: 'eReceipts',
                 eReceiptsHint: `eReceipts are auto-created [for most USD credit transactions](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Attendee tracking',

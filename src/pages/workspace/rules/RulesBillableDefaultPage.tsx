@@ -19,7 +19,7 @@ import type {SettingsNavigatorParamList} from '@libs/Navigation/types';
 import AccessOrNotFoundWrapper from '@pages/workspace/AccessOrNotFoundWrapper';
 import ToggleSettingOptionRow from '@pages/workspace/workflows/ToggleSettingsOptionRow';
 
-import {getBillableExpensesPendingAction, setPolicyBillableMode, toggleBillableExpenses} from '@userActions/Policy/Policy';
+import {getBillableExpensesPendingAction, getPolicyBillableMode, setPolicyBillableModeChoice, toggleBillableExpenses} from '@userActions/Policy/Policy';
 
 import CONST from '@src/CONST';
 import ROUTES from '@src/ROUTES';
@@ -44,32 +44,31 @@ function RulesBillableDefaultPage({
     const {showConfirmModal} = useConfirmModal();
     const isRevamp = isBetaEnabled(CONST.BETAS.RULES_REVAMP);
 
-    const [draftBillable, setDraftBillable] = useState<boolean>();
-    const persistedBillable = policy?.defaultBillable ?? false;
-    const selectedBillable = draftBillable ?? persistedBillable;
-    const hasChanges = selectedBillable !== persistedBillable;
+    const persistedMode = getPolicyBillableMode(policy);
+    // The draft holds the user's in-page selection. Until they pick a row it stays undefined and we fall back to the
+    // persisted mode, which also covers the page rendering before the policy is in Onyx.
+    const [draftMode, setDraftMode] = useState<typeof persistedMode>();
+    const selectedMode = draftMode ?? persistedMode;
+    const hasChanges = !!selectedMode && selectedMode !== persistedMode;
 
-    const billableModes = [
-        {
-            value: true,
-            text: translate(`workspace.rules.individualExpenseRules.billable`),
-            alternateText: translate(`workspace.rules.individualExpenseRules.billableDescription`),
-            keyForList: CONST.POLICY_BILLABLE_MODES.BILLABLE,
-            isSelected: selectedBillable,
-        },
-        {
-            value: false,
-            text: translate(`workspace.rules.individualExpenseRules.nonBillable`),
-            alternateText: translate(`workspace.rules.individualExpenseRules.nonBillableDescription`),
-            keyForList: CONST.POLICY_BILLABLE_MODES.NON_BILLABLE,
-            isSelected: !selectedBillable,
-        },
-    ];
+    // The revamp path represents the disabled state with its own "Track billable" toggle, so it keeps the two-option list.
+    const availableModes = isRevamp
+        ? [CONST.POLICY_BILLABLE_MODES.BILLABLE, CONST.POLICY_BILLABLE_MODES.NON_BILLABLE]
+        : [CONST.POLICY_BILLABLE_MODES.DISABLED, CONST.POLICY_BILLABLE_MODES.NON_BILLABLE, CONST.POLICY_BILLABLE_MODES.BILLABLE];
 
-    const initiallyFocusedOptionKey = selectedBillable ? CONST.POLICY_BILLABLE_MODES.BILLABLE : CONST.POLICY_BILLABLE_MODES.NON_BILLABLE;
+    const billableModes = availableModes.map((mode) => ({
+        value: mode,
+        text: translate(`workspace.rules.individualExpenseRules.${mode}`),
+        alternateText: translate(`workspace.rules.individualExpenseRules.${mode}Description`),
+        keyForList: mode,
+        isSelected: selectedMode === mode,
+    }));
 
     const saveAndGoBack = () => {
-        setPolicyBillableMode(policyID, selectedBillable, policy?.defaultBillable, policy?.disabledFields?.defaultBillable);
+        if (!selectedMode) {
+            return;
+        }
+        setPolicyBillableModeChoice(policy, selectedMode);
         Navigation.setNavigationActionToMicrotaskQueue(Navigation.goBack);
     };
 
@@ -143,11 +142,11 @@ function RulesBillableDefaultPage({
                         data={billableModes}
                         ListItem={SingleSelectListItem}
                         onSelectRow={(item) => {
-                            setDraftBillable(item.value);
+                            setDraftMode(item.value);
                         }}
                         confirmButtonOptions={confirmButtonOptions}
                         shouldSingleExecuteRowSelect
-                        initiallyFocusedItemKey={initiallyFocusedOptionKey}
+                        initiallyFocusedItemKey={persistedMode}
                         addBottomSafeAreaPadding
                     />
                 )}

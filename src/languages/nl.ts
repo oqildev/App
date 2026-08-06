@@ -7556,6 +7556,8 @@ Vereis onkostendetails zoals bonnen en beschrijvingen, stel limieten en standaar
                 billableDescription: 'Uitgaven worden meestal doorbelast aan klanten',
                 nonBillable: 'Niet-factureerbaar',
                 nonBillableDescription: 'Uitgaven worden af en toe opnieuw aan klanten gefactureerd',
+                billableDisabled: 'Uitgeschakeld',
+                billableDisabledDescription: 'Uitgaven worden nooit opnieuw aan klanten gefactureerd',
                 eReceipts: 'eReceipts',
                 eReceiptsHint: `eReceipts worden automatisch aangemaakt [voor de meeste USD-credittransacties](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Deelnemersregistratie',

@@ -2,6 +2,7 @@ import type {GuidedSetupTask} from '@libs/actions/Report';
 import * as APIModule from '@libs/API';
 import {WRITE_COMMANDS} from '@libs/API/types';
 import GoogleTagManager from '@libs/GoogleTagManager';
+import {isBillableEnabledOnPolicy} from '@libs/MoneyRequestReportUtils';
 import * as PersonalDetailsUtils from '@libs/PersonalDetailsUtils';
 import {isPolicyPayer} from '@libs/PolicyUtils';
 import * as ReportUtils from '@libs/ReportUtils';
@@ -3313,6 +3314,88 @@ describe('actions/Policy', () => {
 
             // Check if the pending action is cleared
             expect(policy?.pendingFields?.areRulesEnabled).toBeFalsy();
+        });
+    });
+
+    describe('billable mode', () => {
+        /** A workspace as it is created today: non-billable default, billable tracking off. */
+        const createFreshPolicy = (): PolicyType => ({
+            ...createRandomPolicy(0, CONST.POLICY.TYPE.TEAM),
+            areRulesEnabled: true,
+            defaultBillable: false,
+            disabledFields: {
+                defaultBillable: true,
+                reimbursable: false,
+            },
+        });
+
+        it('resolves a freshly created workspace to DISABLED, not NON_BILLABLE', async () => {
+            const fakePolicy = createFreshPolicy();
+            await Onyx.set(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`, fakePolicy);
+            await waitForBatchedUpdates();
+
+            // The Rules page and the confirm page now agree: tracking is off.
+            expect(Policy.getPolicyBillableMode(fakePolicy)).toBe(CONST.POLICY_BILLABLE_MODES.DISABLED);
+            expect(isBillableEnabledOnPolicy(fakePolicy)).toBe(false);
+        });
+
+        it('enables billable tracking in a single save, without the Billable/Non-billable round trip', async () => {
+            const fakePolicy = createFreshPolicy();
+            await Onyx.set(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`, fakePolicy);
+            await waitForBatchedUpdates();
+
+            // Selecting the mode the page already displays used to be a no-op because Save was disabled.
+            Policy.setPolicyBillableModeChoice(fakePolicy, CONST.POLICY_BILLABLE_MODES.NON_BILLABLE);
+            await waitForBatchedUpdates();
+
+            const policy = await getOnyxValue(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`);
+            expect(policy?.defaultBillable).toBe(false);
+            expect(policy?.disabledFields?.defaultBillable).toBe(false);
+            expect(isBillableEnabledOnPolicy(policy)).toBe(true);
+            expect(Policy.getPolicyBillableMode(policy)).toBe(CONST.POLICY_BILLABLE_MODES.NON_BILLABLE);
+        });
+
+        it('turns billable tracking back off when DISABLED is selected', async () => {
+            const fakePolicy: PolicyType = {
+                ...createRandomPolicy(0, CONST.POLICY.TYPE.TEAM),
+                areRulesEnabled: true,
+                defaultBillable: true,
+                disabledFields: {defaultBillable: false, reimbursable: false},
+            };
+            await Onyx.set(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`, fakePolicy);
+            await waitForBatchedUpdates();
+
+            expect(Policy.getPolicyBillableMode(fakePolicy)).toBe(CONST.POLICY_BILLABLE_MODES.BILLABLE);
+
+            Policy.setPolicyBillableModeChoice(fakePolicy, CONST.POLICY_BILLABLE_MODES.DISABLED);
+            await waitForBatchedUpdates();
+
+            const policy = await getOnyxValue(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`);
+            expect(policy?.disabledFields?.defaultBillable).toBe(true);
+            expect(isBillableEnabledOnPolicy(policy)).toBe(false);
+            expect(Policy.getPolicyBillableMode(policy)).toBe(CONST.POLICY_BILLABLE_MODES.DISABLED);
+        });
+
+        it('routes each mode to the matching API command', async () => {
+            const writeSpy = jest.spyOn(APIModule, 'write');
+            const fakePolicy = createFreshPolicy();
+            await Onyx.set(`${ONYXKEYS.COLLECTION.POLICY}${fakePolicy.id}`, fakePolicy);
+            await waitForBatchedUpdates();
+
+            Policy.setPolicyBillableModeChoice(fakePolicy, CONST.POLICY_BILLABLE_MODES.BILLABLE);
+            await waitForBatchedUpdates();
+            expect(writeSpy).toHaveBeenCalledWith(
+                WRITE_COMMANDS.SET_POLICY_BILLABLE_MODE,
+                expect.objectContaining({policyID: fakePolicy.id, defaultBillable: true, disabledFields: JSON.stringify({defaultBillable: false})}),
+                expect.anything(),
+            );
+
+            writeSpy.mockClear();
+            Policy.setPolicyBillableModeChoice(fakePolicy, CONST.POLICY_BILLABLE_MODES.DISABLED);
+            await waitForBatchedUpdates();
+            expect(writeSpy).toHaveBeenCalledWith(WRITE_COMMANDS.DISABLE_POLICY_BILLABLE_MODE, expect.objectContaining({policyID: fakePolicy.id}), expect.anything());
+
+            writeSpy.mockRestore();
         });
     });
 

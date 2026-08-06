@@ -7627,6 +7627,8 @@ Rendez obligatoires des informations de dépense comme les reçus et les descrip
                 billableDescription: 'Les dépenses sont le plus souvent refacturées aux clients',
                 nonBillable: 'Non refacturable',
                 nonBillableDescription: 'Les dépenses sont parfois refacturées aux clients',
+                billableDisabled: 'Désactivé',
+                billableDisabledDescription: 'Les dépenses ne sont jamais refacturées aux clients',
                 eReceipts: 'e-reçus',
                 eReceiptsHint: `Les e-reçus sont créés automatiquement [pour la plupart des transactions par carte en USD](${CONST.DEEP_DIVE_ERECEIPTS}).`,
                 attendeeTracking: 'Suivi des participants',
