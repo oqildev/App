@@ -5,6 +5,7 @@ import {timezoneBackwardToNewMap, timezoneNewToBackwardMap} from '@src/TIMEZONES
 import type Locale from '@src/types/onyx/Locale';
 import type {SelectedTimezone, Timezone} from '@src/types/onyx/PersonalDetails';
 
+import type {Locale as DateFnsLocale} from 'date-fns';
 import type {ValueOf} from 'type-fest';
 
 import {
@@ -40,6 +41,7 @@ import {
     subMinutes,
 } from 'date-fns';
 import {formatInTimeZone, fromZonedTime, toDate, toZonedTime, format as tzFormat} from 'date-fns-tz';
+import {enGB} from 'date-fns/locale/en-GB';
 import throttle from 'lodash/throttle';
 
 import {setCurrentDate} from './actions/CurrentDate';
@@ -444,16 +446,37 @@ function extractDate(dateTimeString: string): string {
     return format(date, 'yyyy-MM-dd');
 }
 
-/**
- * param {string} dateTimeString
- * returns {string} example: 11:10 PM
- */
-function extractTime12Hour(dateTimeString: string, isFullFormat = false): string {
+function formatTime12Hour(dateTimeString: string, isFullFormat: boolean, locale?: DateFnsLocale): string {
     if (!dateTimeString || dateTimeString === 'never') {
         return '';
     }
     const date = new Date(dateTimeString);
-    return format(date, isFullFormat ? 'hh:mm:ss.SSS a' : 'hh:mm a');
+    return format(date, isFullFormat ? 'hh:mm:ss.SSS a' : 'hh:mm a', {locale});
+}
+
+/**
+ * Formats a time for display, so its day period follows the language the user picked.
+ *
+ * param {string} dateTimeString
+ * returns {string} example: 11:10 PM, or 11:10 nachm. in German
+ */
+function extractTime12Hour(dateTimeString: string, isFullFormat = false): string {
+    return formatTime12Hour(dateTimeString, isFullFormat);
+}
+
+/**
+ * Formats the time that TimePicker keeps as its value.
+ *
+ * That value is machine readable rather than display text: TimePicker rebuilds it from the fixed CONST.TIME_PERIOD
+ * tokens whenever the day period is switched, and combineDateAndTime reads it back. So it is pinned to English instead
+ * of following the global date-fns locale IntlStore installs, which for e.g. German would make the two sides disagree.
+ * Use extractTime12Hour instead whenever the result is shown to the user.
+ *
+ * param {string} dateTimeString
+ * returns {string} example: 11:10 PM, in every language
+ */
+function extractInternalTime12Hour(dateTimeString: string, isFullFormat = false): string {
+    return formatTime12Hour(dateTimeString, isFullFormat, enGB);
 }
 
 /**
@@ -561,8 +584,10 @@ const combineDateAndTime = (updatedTime: string, inputDateTime: string): string 
             parsedTime = tempTime;
         }
     } else if (updatedTime.includes(':')) {
-        // it's in "hh:mm a" format
-        const tempTime = parse(updatedTime, 'hh:mm a', new Date());
+        // It's in "hh:mm a" format. The day period is always one of the fixed CONST.TIME_PERIOD tokens, so it has to be
+        // parsed with a fixed English locale instead of the global one IntlStore installs, otherwise e.g. the German
+        // locale rejects "PM" (it only accepts "vorm."/"nachm.") and the time is silently dropped.
+        const tempTime = parse(updatedTime, 'hh:mm a', new Date(), {locale: enGB});
         if (isValid(tempTime)) {
             parsedTime = tempTime;
         }
@@ -600,27 +625,39 @@ const combineDateAndTime = (updatedTime: string, inputDateTime: string): string 
 };
 
 /**
+ * Splits the value TimePicker keeps into the fields it renders.
+ *
+ * The input comes from extractInternalTime12Hour, so it is parsed and its day period read back with the same fixed
+ * English locale rather than the global one.
+ *
  * param {String} dateTime in 'HH:mm:ss.SSS a' format
  * returns {Object}
  * example {hour: '11', minute: '10', seconds: '10', milliseconds: '123', period: 'AM'}
  */
 function get12HourTimeObjectFromDate(dateTime: string, isFullFormat = false): {hour: string; minute: string; seconds: string; milliseconds: string; period: string} {
+    const defaultTimeObject = {
+        hour: '12',
+        minute: '00',
+        seconds: '00',
+        milliseconds: '000',
+        period: CONST.TIME_PERIOD.PM,
+    };
     if (!dateTime) {
-        return {
-            hour: '12',
-            minute: '00',
-            seconds: '00',
-            milliseconds: '000',
-            period: 'PM',
-        };
+        return defaultTimeObject;
     }
-    const parsedTime = parse(dateTime, isFullFormat ? 'hh:mm:ss.SSS a' : 'hh:mm a', new Date());
+    const parsedTime = parse(dateTime, isFullFormat ? 'hh:mm:ss.SSS a' : 'hh:mm a', new Date(), {locale: enGB});
+    if (!isValid(parsedTime)) {
+        return defaultTimeObject;
+    }
     return {
         hour: format(parsedTime, 'hh'),
         minute: format(parsedTime, 'mm'),
         seconds: isFullFormat ? format(parsedTime, 'ss') : '00',
         milliseconds: isFullFormat ? format(parsedTime, 'SSS') : '000',
-        period: format(parsedTime, 'a').toUpperCase(),
+        // Pinned as well, so that the period always matches the CONST.TIME_PERIOD tokens TimePicker submits and
+        // getStatusAMandPMButtonStyle compares against. Without it German would yield "NACHM." and neither button
+        // would render as selected.
+        period: format(parsedTime, 'a', {locale: enGB}).toUpperCase(),
     };
 }
 
@@ -1164,6 +1201,7 @@ const DateUtils = {
     extractDate,
     getStatusUntilDate,
     extractTime12Hour,
+    extractInternalTime12Hour,
     formatDateTimeTo12Hour,
     get12HourTimeObjectFromDate,
     getLocalizedTimePeriodDescription,

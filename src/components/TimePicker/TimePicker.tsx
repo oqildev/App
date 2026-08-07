@@ -126,7 +126,8 @@ function TimePicker({defaultValue = '', onSubmit, onInputChange = () => {}, shou
     const {isExtraSmallScreenHeight, isInLandscapeMode} = useResponsiveLayout();
     const styles = useThemeStyles();
     const StyleUtils = useStyleUtils();
-    const value = DateUtils.extractTime12Hour(defaultValue, showFullFormat);
+    // This is the picker's own value, not display text, so it keeps the fixed AM/PM tokens in every language.
+    const value = DateUtils.extractInternalTime12Hour(defaultValue, showFullFormat);
     const canUseTouchScreen = canUseTouchScreenDeviceCapabilities();
 
     const [hours, setHours] = useState(() => DateUtils.get12HourTimeObjectFromDate(value, showFullFormat).hour);

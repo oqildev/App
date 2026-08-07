@@ -716,4 +716,120 @@ describe('DateUtils', () => {
             expect(DateUtils.getRemainingSecondsInWindow(Date.now() - 31 * 1000, windowMs)).toBe(0);
         });
     });
+
+    describe('12-hour time round trip across locales', () => {
+        // IntlStore installs the app language as the process-wide date-fns locale, so every one of these has to be able
+        // to round trip the time picker's values. de/el/zh-hans in particular reject the fixed "AM"/"PM" day period.
+        const ALL_LOCALES = [...new Set(Object.values(CONST.LOCALES))];
+        const START_DATE = '2026-08-07 00:00:00'; // Per Diem default start, 12:00 AM
+        const END_DATE = '2026-08-07 12:00:00'; // Per Diem default end, 12:00 PM
+
+        afterEach(() => {
+            IntlStore.load(CONST.LOCALES.EN);
+            return waitForBatchedUpdates();
+        });
+
+        /**
+         * Replays what TimePicker does on mount, from the value it holds rather than from a date, so that the
+         * assertions below exercise only the helpers that already exist and can also be run against main.
+         */
+        const mountPicker = (pickerValue: string) => DateUtils.get12HourTimeObjectFromDate(pickerValue);
+
+        it.each(ALL_LOCALES)('combineDateAndTime parses the picker output in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            expect(DateUtils.combineDateAndTime(`02:00 ${CONST.TIME_PERIOD.PM}`, END_DATE)).toBe('2026-08-07 14:00:00');
+            expect(DateUtils.combineDateAndTime(`08:00 ${CONST.TIME_PERIOD.AM}`, START_DATE)).toBe('2026-08-07 08:00:00');
+        });
+
+        it.each(ALL_LOCALES)('get12HourTimeObjectFromDate returns a CONST.TIME_PERIOD token in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            // TimePicker compares this against CONST.TIME_PERIOD to decide which button is highlighted, so a localized
+            // day period such as "NACHM." would leave neither AM nor PM selected.
+            expect(mountPicker(`12:00 ${CONST.TIME_PERIOD.PM}`).period).toBe(CONST.TIME_PERIOD.PM);
+            expect(mountPicker(`12:00 ${CONST.TIME_PERIOD.AM}`).period).toBe(CONST.TIME_PERIOD.AM);
+        });
+
+        it.each(ALL_LOCALES)('saves a Per Diem after the user switches the day period in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            // The reported repro: open the picker, tap AM/PM (which writes the fixed token), save.
+            const start = DateUtils.combineDateAndTime(`08:00 ${CONST.TIME_PERIOD.AM}`, START_DATE);
+            const end = DateUtils.combineDateAndTime(`02:00 ${CONST.TIME_PERIOD.PM}`, END_DATE);
+
+            expect(DateUtils.isValidStartEndTimeRange({startTime: start, endTime: end})).toBe(true);
+        });
+
+        it.each(ALL_LOCALES)('saves a Per Diem when the day period is left untouched in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            // The picker submits whatever period it was seeded with, so the seed has to round trip too.
+            const start = DateUtils.combineDateAndTime(`08:00 ${mountPicker(`12:00 ${CONST.TIME_PERIOD.AM}`).period}`, START_DATE);
+            const end = DateUtils.combineDateAndTime(`02:00 ${mountPicker(`12:00 ${CONST.TIME_PERIOD.PM}`).period}`, END_DATE);
+
+            expect(DateUtils.isValidStartEndTimeRange({startTime: start, endTime: end})).toBe(true);
+        });
+
+        it.each(ALL_LOCALES)('keeps the displayed time localized in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            // extractTime12Hour feeds user-facing rows, so it must keep following the language rather than turn English.
+            expect(DateUtils.extractTime12Hour(END_DATE)).toBe(format(new Date(END_DATE), 'hh:mm a'));
+        });
+
+        it('keeps noon and midnight on the right side of the day period', async () => {
+            IntlStore.load(CONST.LOCALES.DE);
+            await waitForBatchedUpdates();
+
+            expect(mountPicker(`12:00 ${CONST.TIME_PERIOD.AM}`)).toEqual(expect.objectContaining({hour: '12', minute: '00', period: CONST.TIME_PERIOD.AM}));
+            expect(mountPicker(`12:00 ${CONST.TIME_PERIOD.PM}`)).toEqual(expect.objectContaining({hour: '12', minute: '00', period: CONST.TIME_PERIOD.PM}));
+            expect(DateUtils.combineDateAndTime(`12:00 ${CONST.TIME_PERIOD.AM}`, END_DATE)).toBe('2026-08-07 00:00:00');
+            expect(DateUtils.combineDateAndTime(`12:00 ${CONST.TIME_PERIOD.PM}`, START_DATE)).toBe('2026-08-07 12:00:00');
+        });
+
+        it('falls back instead of throwing when the time cannot be parsed', async () => {
+            IntlStore.load(CONST.LOCALES.DE);
+            await waitForBatchedUpdates();
+
+            // Without the isValid guard this reaches format() with an Invalid Date and throws RangeError,
+            // which would crash the time picker on mount rather than degrade.
+            expect(() => DateUtils.get12HourTimeObjectFromDate('not a time')).not.toThrow();
+            expect(DateUtils.get12HourTimeObjectFromDate('not a time')).toEqual(DateUtils.get12HourTimeObjectFromDate(''));
+        });
+    });
+
+    describe('the time picker value is separate from the displayed time', () => {
+        const ALL_LOCALES = [...new Set(Object.values(CONST.LOCALES))];
+        const NOON = '2026-08-07 12:00:00';
+        const MIDNIGHT = '2026-08-07 00:00:00';
+
+        afterEach(() => {
+            IntlStore.load(CONST.LOCALES.EN);
+            return waitForBatchedUpdates();
+        });
+
+        it.each(ALL_LOCALES)('extractInternalTime12Hour stays English in %s', async (locale) => {
+            IntlStore.load(locale);
+            await waitForBatchedUpdates();
+
+            // What TimePicker holds is a machine value, so it never follows the language...
+            expect(DateUtils.extractInternalTime12Hour(NOON)).toBe(`12:00 ${CONST.TIME_PERIOD.PM}`);
+            expect(DateUtils.extractInternalTime12Hour(MIDNIGHT)).toBe(`12:00 ${CONST.TIME_PERIOD.AM}`);
+            expect(DateUtils.extractInternalTime12Hour(NOON, true)).toBe(`12:00:00.000 ${CONST.TIME_PERIOD.PM}`);
+
+            // ...while the row the user reads still does.
+            expect(DateUtils.extractTime12Hour(NOON)).toBe(format(new Date(NOON), 'hh:mm a'));
+        });
+
+        it.each(['', 'never'])('returns an empty string for %p, like extractTime12Hour', (input) => {
+            expect(DateUtils.extractInternalTime12Hour(input)).toBe('');
+            expect(DateUtils.extractInternalTime12Hour(input)).toBe(DateUtils.extractTime12Hour(input));
+        });
+    });
 });
