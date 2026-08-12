@@ -1,5 +1,9 @@
-import {handleReplaceFullscreenUnderRHP} from '@libs/Navigation/AppNavigator/createRootStackNavigator/GetStateForActionHandlers';
-import type {ReplaceFullscreenUnderRHPActionType} from '@libs/Navigation/AppNavigator/createRootStackNavigator/types';
+import {
+    clearPreInsertedOriginalTabRoute,
+    handleRemoveFullscreenUnderRHP,
+    handleReplaceFullscreenUnderRHP,
+} from '@libs/Navigation/AppNavigator/createRootStackNavigator/GetStateForActionHandlers';
+import type {RemoveFullscreenUnderRHPActionType, ReplaceFullscreenUnderRHPActionType} from '@libs/Navigation/AppNavigator/createRootStackNavigator/types';
 import type {NavigationPartialRoute, NavigationStateRoute} from '@libs/Navigation/types';
 
 import CONST from '@src/CONST';
@@ -210,5 +214,215 @@ describe('handleReplaceFullscreenUnderRHP — WORKSPACE_NAVIGATOR seeding', () =
         const result = handleReplaceFullscreenUnderRHP(tabOnly, makeAction(), CONFIG_OPTIONS, stackRouter);
 
         expect(result).toBeNull();
+    });
+});
+
+/** Builds a report route the way the reports split holds it: SCREENS.REPORT identified by its reportID param. */
+function makeReportRoute(reportID: string, key?: string): TestRoute {
+    return makeRoute(SCREENS.REPORT, {reportID}, undefined, key ?? `report-${reportID}-key`);
+}
+
+/**
+ * Builds the state returned by the stubbed getStateFromPath for a report route. The real parser resolves
+ * `/r/<reportID>` to the report alone, without the Inbox sidebar and without an index - see the
+ * REPORTS_SPLIT_NAVIGATOR entry in linkingConfig, which declares no initialRouteName.
+ */
+function makeParsedReportState(nestedRoutes: PartialState<NavigationState>['routes']): PartialState<NavigationState> {
+    return {
+        routes: [
+            {
+                name: NAVIGATORS.TAB_NAVIGATOR,
+                state: {
+                    index: 1,
+                    routes: [{name: SCREENS.HOME}, {name: NAVIGATORS.REPORTS_SPLIT_NAVIGATOR, state: {routes: nestedRoutes}}],
+                },
+            },
+        ],
+    };
+}
+
+/** Root state [TAB_NAVIGATOR, RHP] where the tab navigator holds the given tabs and the reports split has `splitRoutes`. */
+function makeReportsExistingState(
+    splitRoutes: TestRoute[] | undefined,
+    splitIndex = (splitRoutes?.length ?? 1) - 1,
+    extraTabs: TestRoute[] = [],
+    focusedTabIndex = 0,
+): StackNavigationState<ParamListBase> {
+    const reportsSplitRoute = {
+        key: 'reports-split-key',
+        name: NAVIGATORS.REPORTS_SPLIT_NAVIGATOR,
+        ...(splitRoutes ? {state: {index: splitIndex, routes: splitRoutes}} : {}),
+    } as TestRoute;
+    const tabNavRoute = makeRoute(NAVIGATORS.TAB_NAVIGATOR, undefined, {index: focusedTabIndex, routes: [reportsSplitRoute, ...extraTabs]}, 'tab-nav-key');
+    return makeStackState([tabNavRoute, makeRHPRoute()]);
+}
+
+function makeReportAction(reportID: string): ReplaceFullscreenUnderRHPActionType {
+    return {
+        type: CONST.NAVIGATION.ACTION_TYPE.REPLACE_FULLSCREEN_UNDER_RHP,
+        payload: {route: ROUTES.REPORT_WITH_ID.getRoute(reportID)},
+    };
+}
+
+function getReportsSplitInnerRoutes(result: StackNavigationState<ParamListBase> | null) {
+    const tabRoute = result?.routes.find((r) => r.name === NAVIGATORS.TAB_NAVIGATOR);
+    const tabState = tabRoute?.state;
+    const splitState = tabState?.routes.find((r) => r.name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR)?.state;
+    return {
+        names: splitState?.routes?.map((r) => r.name),
+        reportIDs: splitState?.routes?.map((r) => (r.params as {reportID?: string} | undefined)?.reportID),
+        keys: splitState?.routes?.map((r) => r.key),
+        index: splitState?.index,
+    };
+}
+
+describe('handleReplaceFullscreenUnderRHP - REPORTS_SPLIT_NAVIGATOR history (#98106)', () => {
+    afterEach(() => {
+        // The handler stores the original tab route in module state for the cancel path; reset it between tests.
+        clearPreInsertedOriginalTabRoute();
+    });
+
+    it('keeps the report the user is on beneath the pre-inserted destination so back returns to it', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        // Viewing the self DM (report 100) when the confirmation step pre-inserts the workspace chat (report 200).
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100')]);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs, index} = getReportsSplitInnerRoutes(result);
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '100', '200']);
+        // The destination stays focused; the self DM sits right beneath it as the back target.
+        expect(index).toBe(2);
+        expect(result?.routes.at(-1)?.name).toBe(NAVIGATORS.RIGHT_MODAL_NAVIGATOR);
+    });
+
+    it('carries the preserved report over keyless so it mounts born-non-top and does not flash (#90985)', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100', 'self-dm-key')]);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {keys, reportIDs} = getReportsSplitInnerRoutes(result);
+        expect(reportIDs).toEqual([undefined, '100', '200']);
+        // The self DM is the mounted, visible top and becomes non-top during the reveal. Reusing its key makes
+        // react-native-screens reorder it top->non-top and flash it, so it has to come back keyless.
+        expect(keys?.at(1)).toBeUndefined();
+        // The sidebar is non-top already, so it keeps its key and its state exactly as it does today.
+        expect(keys?.at(0)).toBe('inbox-key');
+    });
+
+    it('is idempotent when the same destination is pre-inserted again', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        // State after a first pre-insert: the hook can recompute and re-dispatch while the RHP is still open.
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100'), makeReportRoute('200')]);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs, index} = getReportsSplitInnerRoutes(result);
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '100', '200']);
+        expect(index).toBe(2);
+    });
+
+    it('does not stack the same report twice when the destination is the report already open', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '100'}}]);
+        // The skip-confirmation flows (scan/distance/amount) pre-insert without checking the topmost report.
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100')]);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('100'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs, index} = getReportsSplitInnerRoutes(result);
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '100']);
+        expect(index).toBe(1);
+    });
+
+    it('drops forward history above the focused report instead of resurrecting it', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '300'}}]);
+        // The user opened report 200 and then went back to report 100, so 200 is popped-past forward history.
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100'), makeReportRoute('200')], 1);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('300'), CONFIG_OPTIONS, stackRouter);
+
+        const {reportIDs, index} = getReportsSplitInnerRoutes(result);
+        expect(reportIDs).toEqual([undefined, '100', '300']);
+        expect(index).toBe(2);
+    });
+
+    it('keeps the sidebar-only back target when no report is open (unchanged behavior)', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key')]);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs, index, keys} = getReportsSplitInnerRoutes(result);
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '200']);
+        expect(index).toBe(1);
+        // At depth 1 nothing is preserved, so the sidebar is prepended with its key exactly as before.
+        expect(keys?.at(0)).toBe('inbox-key');
+    });
+
+    it('does not resurrect background history when the reports tab is not the focused tab', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        // The user is on the Search tab; the reports tab still holds a report visited earlier in the session.
+        const searchTab = makeRoute(NAVIGATORS.SEARCH_FULLSCREEN_NAVIGATOR, undefined, {index: 0, routes: [{name: SCREENS.SEARCH.ROOT}]}, 'search-key');
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100')], 1, [searchTab], 1);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs} = getReportsSplitInnerRoutes(result);
+        // Back must land on the Inbox, not on a report the user left before switching tabs.
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '200']);
+    });
+
+    it('restores the original stack with its keys when the user cancels the flow', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        const existing = makeReportsExistingState([makeRoute(SCREENS.INBOX, undefined, undefined, 'inbox-key'), makeReportRoute('100', 'self-dm-key')]);
+        const preInserted = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+        expect(getReportsSplitInnerRoutes(preInserted).reportIDs).toEqual([undefined, '100', '200']);
+        if (!preInserted) {
+            throw new Error('Expected the pre-insert to return a state.');
+        }
+
+        const removeAction: RemoveFullscreenUnderRHPActionType = {
+            type: CONST.NAVIGATION.ACTION_TYPE.REMOVE_FULLSCREEN_UNDER_RHP,
+            payload: {expectedRouteName: NAVIGATORS.TAB_NAVIGATOR},
+        };
+        const restored = handleRemoveFullscreenUnderRHP(preInserted, removeAction, CONFIG_OPTIONS, stackRouter);
+
+        // preInsertedOriginalTabRoute is captured before the splice, so the self DM comes back on top with its key.
+        const {names, reportIDs, keys, index} = getReportsSplitInnerRoutes(restored);
+        expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT]);
+        expect(reportIDs).toEqual([undefined, '100']);
+        expect(keys).toEqual(['inbox-key', 'self-dm-key']);
+        expect(index).toBe(1);
+    });
+});
+
+describe('handleReplaceFullscreenUnderRHP - other split navigators keep the single back target', () => {
+    afterEach(() => {
+        clearPreInsertedOriginalTabRoute();
+    });
+
+    it('collapses the settings split to its sidebar even when a screen is open on top of it', () => {
+        mockStubbedParsedState = {
+            routes: [
+                {
+                    name: NAVIGATORS.TAB_NAVIGATOR,
+                    state: {index: 0, routes: [{name: NAVIGATORS.SETTINGS_SPLIT_NAVIGATOR, state: {routes: [{name: SCREENS.SETTINGS.PREFERENCES.ROOT}]}}]},
+                },
+            ],
+        };
+        const settingsSplitRoute = {
+            key: 'settings-split-key',
+            name: NAVIGATORS.SETTINGS_SPLIT_NAVIGATOR,
+            state: {
+                index: 1,
+                routes: [makeRoute(SCREENS.SETTINGS.ROOT, undefined, undefined, 'settings-root-key'), makeRoute(SCREENS.SETTINGS.PROFILE.ROOT, undefined, undefined, 'profile-key')],
+            },
+        } as TestRoute;
+        const tabNavRoute = makeRoute(NAVIGATORS.TAB_NAVIGATOR, undefined, {index: 0, routes: [settingsSplitRoute]}, 'tab-nav-key');
+        const result = handleReplaceFullscreenUnderRHP(makeStackState([tabNavRoute, makeRHPRoute()]), makeAction(), CONFIG_OPTIONS, stackRouter);
+
+        const splitState = result?.routes.find((r) => r.name === NAVIGATORS.TAB_NAVIGATOR)?.state?.routes.find((r) => r.name === NAVIGATORS.SETTINGS_SPLIT_NAVIGATOR)?.state;
+        // Only the reports split preserves its stack; every other tab keeps today's single-back-target behavior.
+        expect(splitState?.routes?.map((r) => r.name)).toEqual([SCREENS.SETTINGS.ROOT, SCREENS.SETTINGS.PREFERENCES.ROOT]);
+        expect(splitState?.index).toBe(1);
     });
 });

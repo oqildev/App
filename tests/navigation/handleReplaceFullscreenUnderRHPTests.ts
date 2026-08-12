@@ -98,4 +98,38 @@ describe('handleReplaceFullscreenUnderRHP - tab switch', () => {
         expect(strip?.index).toBe(TAB_SCREENS.indexOf(NAVIGATORS.SEARCH_FULLSCREEN_NAVIGATOR));
         expect(strip?.routes.at(TAB_SCREENS.indexOf(SCREENS.HOME))?.state).toEqual(homeNestedState);
     });
+
+    it('keeps the report the user is on beneath a report pre-inserted into the focused reports tab (#98106)', () => {
+        // The confirmation RHP is open over the self DM (report 100) and pre-inserts the workspace chat (report 200).
+        mockGetStateFromPath.mockReturnValue({
+            routes: [
+                {
+                    name: NAVIGATORS.TAB_NAVIGATOR,
+                    state: {routes: [{name: NAVIGATORS.REPORTS_SPLIT_NAVIGATOR, state: {routes: [{name: SCREENS.REPORT, params: {reportID: '200'}}]}}], index: 0},
+                },
+            ],
+            index: 0,
+        });
+        const reportsSplitIndex = TAB_SCREENS.indexOf(NAVIGATORS.REPORTS_SPLIT_NAVIGATOR);
+        const reportsNestedState: PartialState<NavigationState> = {
+            routes: [
+                {key: 'Inbox-1', name: SCREENS.INBOX},
+                {key: 'Report-100', name: SCREENS.REPORT, params: {reportID: '100'}},
+            ],
+            index: 1,
+        };
+        const strip: PartialState<NavigationState> = {
+            routes: TAB_SCREENS.map((name) => (name === NAVIGATORS.REPORTS_SPLIT_NAVIGATOR ? {name, state: reportsNestedState} : {name})),
+            index: reportsSplitIndex,
+        };
+
+        const result = handleReplaceFullscreenUnderRHP(buildRootStackState(strip), replaceAction, configOptions, stackRouter);
+        const splitState = getTabStrip(result)?.routes.at(reportsSplitIndex)?.state;
+
+        expect(splitState?.routes.map((route) => (route.params as {reportID?: string} | undefined)?.reportID)).toEqual([undefined, '100', '200']);
+        expect(splitState?.index).toBe(2);
+        // The self DM is carried over keyless so it mounts born-non-top instead of being reordered and flashed (#90985).
+        expect(splitState?.routes.at(1)?.key).toBeUndefined();
+        expect(result?.routes.at(-1)?.name).toBe(NAVIGATORS.RIGHT_MODAL_NAVIGATOR);
+    });
 });

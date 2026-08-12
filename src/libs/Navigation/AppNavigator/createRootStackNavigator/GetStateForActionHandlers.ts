@@ -204,17 +204,85 @@ function getFocusedRouteFromNavigatorState(navState: NavigationState | PartialSt
     return navState.routes[idx] as NavigationPartialRoute;
 }
 
-function getTargetTabRoute(existingTabRoute: TabRouteForReplacement | undefined, focusedTargetTab: NavigationPartialRoute): TabRouteForReplacement {
+/**
+ * Compares two routes by identity rather than by screen name alone. The report the user is standing on and
+ * the report being pre-inserted are both `SCREENS.REPORT` and differ only by `reportID`, so a name-only
+ * comparison would treat them as the same screen and collapse them into a single entry.
+ */
+function isSameRoute(routeA: NavigationPartialRoute | undefined, routeB: NavigationPartialRoute | undefined): boolean {
+    if (!routeA || !routeB || routeA.name !== routeB.name) {
+        return false;
+    }
+    return (routeA.params as {reportID?: string} | undefined)?.reportID === (routeB.params as {reportID?: string} | undefined)?.reportID;
+}
+
+/** Returns a copy of `route` without its navigation key, so it is rehydrated as a fresh route instead of a mounted one. */
+function withoutRouteKey(route: NavigationPartialRoute): NavigationPartialRoute {
+    if (!('key' in route)) {
+        return route;
+    }
+    const routeWithoutKey = {...route};
+    delete (routeWithoutKey as {key?: string}).key;
+    return routeWithoutKey;
+}
+
+/**
+ * Routes to keep beneath a report that is pre-inserted into the reports split the user is currently standing in.
+ *
+ * The default model in `getTargetTabRoute` keeps a single back target - the tab's first route, i.e. the sidebar -
+ * which assumes the tab stack is only ever the sidebar deep. That holds for LHN and global-create entry points,
+ * but not when the RHP flow was launched from a report: collapsing `[Inbox, Report(selfDM)]` into
+ * `[Inbox, Report(destination)]` drops the report the user came from before Back is ever pressed (#98106).
+ *
+ * Returns `undefined` when the default single-back-target model applies, so every other tab keeps today's behavior.
+ */
+function getPreservedReportsSplitRoutes(
+    focusedTargetTab: NavigationPartialRoute,
+    existingNestedState: PartialState<NavigationState> | undefined,
+    isTargetTabFocused: boolean,
+): NavigationPartialRoute[] | undefined {
+    // The reports split is the only tab that routinely holds a mid-stack screen the user expects Back to reach.
+    // WORKSPACE_NAVIGATOR keeps its bespoke WORKSPACES_LIST seeding below, and the remaining tabs keep the single
+    // back target. `isTargetTabFocused` matters because the target tab is looked up by name: when the user is on
+    // another tab (e.g. revealing a report from Search), the reports tab holds background history the user is not
+    // standing on, and resurrecting it would send Back to a report they left long ago instead of the Inbox.
+    if (!isTargetTabFocused || focusedTargetTab.name !== NAVIGATORS.REPORTS_SPLIT_NAVIGATOR) {
+        return undefined;
+    }
+    const existingRoutes = existingNestedState?.routes;
+    if (!existingRoutes?.length) {
+        return undefined;
+    }
+    const focusedIndex = typeof existingNestedState?.index === 'number' && existingRoutes.at(existingNestedState.index) !== undefined ? existingNestedState.index : 0;
+    // Only the sidebar is open, so the default behavior already produces exactly this stack.
+    if (focusedIndex < 1) {
+        return undefined;
+    }
+    // Routes above the focused one are forward history the user already popped past; they must not come back.
+    // The focused route is the mounted, visible top and is about to become non-top, so it is carried over keyless:
+    // reusing its key makes react-native-screens reorder it top->non-top during the reveal and flash it (#90985),
+    // exactly like the WORKSPACES_LIST seeding below. Nothing is lost by dropping it, because
+    // `markFocusedTabRouteForRemount` already remounts the whole split navigator. Routes below it are non-top
+    // already, so they keep their keys and their params, as they do today.
+    return existingRoutes.slice(0, focusedIndex + 1).map((route, index) => (index === focusedIndex ? withoutRouteKey(route) : route));
+}
+
+function getTargetTabRoute(existingTabRoute: TabRouteForReplacement | undefined, focusedTargetTab: NavigationPartialRoute, isTargetTabFocused = false): TabRouteForReplacement {
     // Prepend a back-target route beneath the incoming screen when the incoming state starts with a
     // different screen, so back navigation lands somewhere sensible: the existing sidebar/root route
     // (e.g. Inbox) for most tabs, or WORKSPACES_LIST for the workspace navigator. When the existing tab
     // doesn't have nested routes (e.g. cold-start through a deep link that opens straight into a modal),
     // fall back to the split navigator's default sidebar route so there is still something to pop back to.
+    // A report revealed into the focused reports tab keeps that tab's whole stack instead of a single back
+    // target, so the report the user came from survives the rebuild - see getPreservedReportsSplitRoutes.
     let mergedNestedState = focusedTargetTab.state;
-    const existingNestedRoutes = (existingTabRoute?.state as PartialState<NavigationState> | undefined)?.routes;
+    const existingNestedState = existingTabRoute?.state as PartialState<NavigationState> | undefined;
+    const existingNestedRoutes = existingNestedState?.routes;
     const newNestedRoutes = focusedTargetTab.state?.routes;
     const existingFirstRoute = existingNestedRoutes?.at(0);
     const newFirstRoute = newNestedRoutes?.at(0);
+    const newFocusedRoute = getFocusedRouteFromNavigatorState(focusedTargetTab.state) ?? newFirstRoute;
+    const preservedRoutes = getPreservedReportsSplitRoutes(focusedTargetTab, existingNestedState, isTargetTabFocused);
     const defaultSidebarRouteName = getSidebarRouteName(existingTabRoute?.name ?? focusedTargetTab.name);
     // The route prepended beneath the incoming screen so back navigation has a target. For most tabs this is
     // the sidebar/root route; for WORKSPACE_NAVIGATOR it is WORKSPACES_LIST (a list screen, not a sidebar).
@@ -231,7 +299,16 @@ function getTargetTabRoute(existingTabRoute: TabRouteForReplacement | undefined,
     } else {
         backTargetRoute = existingFirstRoute ?? (defaultSidebarRouteName ? {name: defaultSidebarRouteName} : undefined);
     }
-    if (backTargetRoute && newFirstRoute && backTargetRoute.name !== newFirstRoute.name) {
+    if (preservedRoutes) {
+        // Drop a preserved tail that duplicates the incoming report, so re-dispatching the same pre-insert stays
+        // idempotent and the skip-confirmation flows - which pre-insert without checking the topmost report - do not
+        // stack the same report twice. Both routes are SCREENS.REPORT, so this has to compare identity, not name.
+        const prefix = isSameRoute(preservedRoutes.at(-1), newFocusedRoute) ? preservedRoutes.slice(0, -1) : preservedRoutes;
+        // The incoming state currently starts at the report itself; drop a leading duplicate if it ever starts at the sidebar.
+        const incomingRoutes = isSameRoute(prefix.at(0), newFirstRoute) ? (newNestedRoutes ?? []).slice(1) : (newNestedRoutes ?? []);
+        const prependedRoutes = [...prefix, ...incomingRoutes];
+        mergedNestedState = {...focusedTargetTab.state, routes: prependedRoutes, index: prependedRoutes.length - 1};
+    } else if (backTargetRoute && newFirstRoute && backTargetRoute.name !== newFirstRoute.name) {
         const prependedRoutes = [backTargetRoute, ...(newNestedRoutes ?? [])];
         mergedNestedState = {...focusedTargetTab.state, routes: prependedRoutes, index: prependedRoutes.length - 1};
     }
@@ -260,11 +337,15 @@ function getTabStateWithExistingFocusedTarget(existingTabState: NavigationState,
         return undefined;
     }
 
+    // The target tab is found by name, so it is not necessarily the tab the user is looking at. Only the focused
+    // tab's stack is history the user is standing on and expects Back to walk (see getPreservedReportsSplitRoutes).
+    const isTargetTabFocused = targetTabIndex === existingTabState.index;
+
     const updatedTabRoutes = existingTabState.routes.map((route, index) => {
         if (index !== targetTabIndex) {
             return route;
         }
-        return getTargetTabRoute(route, focusedTargetTab);
+        return getTargetTabRoute(route, focusedTargetTab, isTargetTabFocused);
     });
     return {...existingTabState, routes: updatedTabRoutes, index: targetTabIndex};
 }
