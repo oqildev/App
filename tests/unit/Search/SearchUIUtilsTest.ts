@@ -12052,3 +12052,32 @@ describe('getViolationsFromSearchData', () => {
         expect(SearchUIUtils.getViolationsFromSearchData(data)).toEqual({});
     });
 });
+
+describe('Created date labels', () => {
+    beforeAll(async () => {
+        await IntlStore.load('en');
+        await waitForBatchedUpdates();
+    });
+
+    it('labels the date filter "Created date" on every surface that reads FILTER_VIEW_MAP', () => {
+        // One entry drives the advanced-filters row, the filter chip and the filter page title.
+        expect(translateLocal(SearchUIUtils.FILTER_VIEW_MAP[CONST.SEARCH.SYNTAX_FILTER_KEYS.DATE].labelKey)).toBe('Created date');
+    });
+
+    it('labels the date column "Created" in the results table header', () => {
+        const dateColumn = getExpenseHeaders().find((header) => header.columnName === CONST.SEARCH.TABLE_COLUMNS.DATE);
+
+        expect(dateColumn?.translationKey).toBeDefined();
+        expect(translateLocal(dateColumn?.translationKey ?? 'common.date')).toBe('Created');
+    });
+
+    it('labels the date column "Created" in the sort menu, columns picker and saved-search summary', () => {
+        // These three surfaces all name the column through getSearchColumnTranslationKey, not the header config.
+        expect(translateLocal(SearchUIUtils.getSearchColumnTranslationKey(CONST.SEARCH.TABLE_COLUMNS.DATE))).toBe('Created');
+    });
+
+    it('leaves the shared common.date string alone so unrelated surfaces still read "Date"', () => {
+        // Guards against renaming the key that the IOU date step, travel details and the CSV import mapper share.
+        expect(translateLocal('common.date')).toBe('Date');
+    });
+});

@@ -9054,6 +9054,8 @@ Fügen Sie weitere Ausgabelimits hinzu, um den Cashflow Ihres Unternehmens zu sc
             exported: 'Exportiert',
             posted: 'Gebucht',
             withdrawn: 'Zurückgezogen',
+            created: 'Erstellt',
+            createdDate: 'Erstellungsdatum',
             billable: 'Abrechenbar',
             reimbursable: 'Erstattungsfähig',
             purchaseCurrency: 'Kaufwährung',

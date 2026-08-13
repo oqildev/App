@@ -9192,6 +9192,8 @@ const translations = {
             exported: 'Exported',
             posted: 'Posted',
             withdrawn: 'Withdrawn',
+            created: 'Created',
+            createdDate: 'Created date',
             billable: 'Billable',
             reimbursable: 'Reimbursable',
             purchaseCurrency: 'Purchase currency',
