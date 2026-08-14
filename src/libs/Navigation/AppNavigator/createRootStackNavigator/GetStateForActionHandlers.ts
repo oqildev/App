@@ -254,10 +254,11 @@ function getPreservedReportsSplitRoutes(
         return undefined;
     }
     const focusedIndex = typeof existingNestedState?.index === 'number' && existingRoutes.at(existingNestedState.index) !== undefined ? existingNestedState.index : 0;
-    // Only the sidebar is open, so the default behavior already produces exactly this stack.
-    if (focusedIndex < 1) {
-        return undefined;
-    }
+    // No depth guard here on purpose. The split has two shapes on device: [Inbox, Report] focused at 1, and
+    // [Report] focused at 0 with no sidebar at all (reached without the Inbox ever entering the stack). A
+    // `length > 1` guard would send the second shape back to the single-back-target path, where the incoming
+    // report and the open report are both SCREENS.REPORT, the name compare below is false, and the open report
+    // is dropped - the original bug. The slice degenerates to the sidebar alone when that is all there is.
     // Routes above the focused one are forward history the user already popped past; they must not come back.
     // The focused route is the mounted, visible top and is about to become non-top, so it is carried over keyless:
     // reusing its key makes react-native-screens reorder it top->non-top during the reveal and flash it (#90985),

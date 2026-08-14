@@ -334,6 +334,18 @@ describe('handleReplaceFullscreenUnderRHP - REPORTS_SPLIT_NAVIGATOR history (#98
         expect(index).toBe(1);
     });
 
+    it('SHAPE A: keeps the open report when the split has no sidebar at all', () => {
+        mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '200'}}]);
+        // Device-observed shape: the split holds only the report, focused index 0, no Inbox beneath it.
+        const existing = makeReportsExistingState([makeReportRoute('100', 'self-dm-key')], 0);
+        const result = handleReplaceFullscreenUnderRHP(existing, makeReportAction('200'), CONFIG_OPTIONS, stackRouter);
+
+        const {names, reportIDs, index} = getReportsSplitInnerRoutes(result);
+        expect(names).toEqual([SCREENS.REPORT, SCREENS.REPORT]);
+        expect(reportIDs).toEqual(['100', '200']);
+        expect(index).toBe(1);
+    });
+
     it('drops forward history above the focused report instead of resurrecting it', () => {
         mockStubbedParsedState = makeParsedReportState([{name: SCREENS.REPORT, params: {reportID: '300'}}]);
         // The user opened report 200 and then went back to report 100, so 200 is popped-past forward history.
@@ -354,8 +366,10 @@ describe('handleReplaceFullscreenUnderRHP - REPORTS_SPLIT_NAVIGATOR history (#98
         expect(names).toEqual([SCREENS.INBOX, SCREENS.REPORT]);
         expect(reportIDs).toEqual([undefined, '200']);
         expect(index).toBe(1);
-        // At depth 1 nothing is preserved, so the sidebar is prepended with its key exactly as before.
-        expect(keys?.at(0)).toBe('inbox-key');
+        // The slice degenerates to the sidebar alone, so the stack matches what the single-back-target path
+        // produced. The sidebar is carried keyless here because at depth 1 it is itself the visible top that
+        // becomes non-top - the same reorder-flash case the preserved report guards against (#90985).
+        expect(keys?.at(0)).toBeUndefined();
     });
 
     it('does not resurrect background history when the reports tab is not the focused tab', () => {
