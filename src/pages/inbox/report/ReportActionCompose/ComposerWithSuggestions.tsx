@@ -285,8 +285,28 @@ function ComposerWithSuggestions({
         return initialValue;
     });
 
+    // The action whose edit draft the debounced writer below is currently allowed to persist, or `undefined` when no
+    // edit is open. Kept in a ref so the trailing debounce reads it when it fires rather than when it was scheduled.
+    const activeEditReportActionIDRef = useRef<string | undefined>(undefined);
+    const activeEditReportActionID = editingState === CONST.REPORT_ACTION_EDIT_MESSAGE_STATE.EDITING ? editingReportAction?.reportActionID : undefined;
+    useEffect(() => {
+        activeEditReportActionIDRef.current = activeEditReportActionID;
+    }, [activeEditReportActionID]);
+
     // Save the draft of the report action. This debounced so that we're not ceaselessly saving your edit.
-    const {saveDraft: debouncedSaveReportActionDraft, isSavePending: isDraftSavePending} = useDebouncedSaveDraft(saveReportActionDraft);
+    // On narrow layout the edit happens in this composer, which never unmounts, so `useDebounce` never gets to cancel a
+    // pending trailing save when the edit ends. Ending an edit clears REPORT_ACTIONS_DRAFTS, and `saveReportActionDraft`
+    // writes the collection back with `Onyx.setCollection`, so a trailing call would re-open the edit that just finished
+    // and drop any edit draft started in the meantime. Skip the write once it no longer targets the open edit.
+    const {saveDraft: debouncedSaveReportActionDraft, isSavePending: isDraftSavePending} = useDebouncedSaveDraft(
+        useCallback((...args: Parameters<typeof saveReportActionDraft>) => {
+            const [, reportActionToSave] = args;
+            if (activeEditReportActionIDRef.current !== reportActionToSave?.reportActionID) {
+                return;
+            }
+            saveReportActionDraft(...args);
+        }, []),
+    );
 
     // Save the draft of the report comment. This debounced so that we're not ceaselessly saving your edit. Saving the draft
     // allows one to navigate somewhere else and come back to the comment and still have it in edit mode.

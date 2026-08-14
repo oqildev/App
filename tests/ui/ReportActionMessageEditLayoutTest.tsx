@@ -7,12 +7,17 @@ import {KeyboardStateProvider} from '@components/withKeyboardState';
 
 import useResponsiveLayout from '@hooks/useResponsiveLayout';
 
+import ComposerInputArea from '@pages/inbox/report/ReportActionCompose/ComposerInputArea';
+import ComposerProvider from '@pages/inbox/report/ReportActionCompose/ComposerProvider';
 import type {ReportActionComposeProps} from '@pages/inbox/report/ReportActionCompose/ReportActionCompose';
 import ReportActionCompose from '@pages/inbox/report/ReportActionCompose/ReportActionCompose';
+import useComposerSubmit from '@pages/inbox/report/ReportActionCompose/useComposerSubmit';
 import {ReportActionEditMessageContextProvider} from '@pages/inbox/report/ReportActionEditMessageContext';
 import type {ReportActionItemMessageEditProps} from '@pages/inbox/report/ReportActionItemMessageEdit';
 import ReportActionItemMessageEdit from '@pages/inbox/report/ReportActionItemMessageEdit';
 import {draftMessageVideoAttributeCache} from '@pages/inbox/report/useDraftMessageVideoAttributeCache';
+
+import {saveReportActionDraft} from '@userActions/Report';
 
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
@@ -21,6 +26,7 @@ import type * as NativeNavigation from '@react-navigation/native';
 import type {PropsWithChildren} from 'react';
 
 import React from 'react';
+import {Pressable, Text} from 'react-native';
 import Onyx from 'react-native-onyx';
 
 import * as LHNTestUtils from '../utils/LHNTestUtils';
@@ -141,6 +147,13 @@ const commentAction: ReportActionItemMessageEditProps['action'] = {
     actionName: CONST.REPORT.ACTIONS.TYPE.ADD_COMMENT,
 };
 
+/** A second editable comment in the same report, used to prove a finished edit cannot write over a newly started one. */
+const otherCommentAction: ReportActionItemMessageEditProps['action'] = {
+    ...LHNTestUtils.getFakeReportAction(),
+    reportActionID: '9998887776',
+    actionName: CONST.REPORT.ACTIONS.TYPE.ADD_COMMENT,
+};
+
 const testIds = CONST.COMPOSER.TEST_ID;
 
 const rootChatReport = LHNTestUtils.getFakeReport();
@@ -201,6 +214,7 @@ async function seedReportAndActions() {
         await Onyx.merge(`${ONYXKEYS.COLLECTION.REPORT}${defaultReport.reportID}`, defaultReport);
         await Onyx.merge(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${defaultReport.reportID}`, {
             [commentAction.reportActionID]: commentAction,
+            [otherCommentAction.reportActionID]: otherCommentAction,
         });
     });
 }
@@ -266,6 +280,68 @@ async function getReportActionDraftMessage(reportID: string, reportActionID: str
         },
     });
     return draftMessage;
+}
+
+/**
+ * Stands in for the real send button. The button itself is driven by a react-native-gesture-handler Tap
+ * gesture, which RNTL cannot fire, so this calls the exact same entry point the button does.
+ */
+function SaveProbe({reportID}: {reportID: string}) {
+    const {submitDraftAndClearComposer} = useComposerSubmit(reportID);
+    return (
+        <Pressable
+            testID="messageEditSave_mainComposer"
+            onPress={submitDraftAndClearComposer}
+        >
+            <Text>save</Text>
+        </Pressable>
+    );
+}
+
+function renderNarrowMessageComposeWithSaveButton() {
+    mockUseResponsiveLayout.mockReturnValue(narrowLayout);
+    return render(
+        <ReportScreenProviders>
+            <ComposerProvider reportID={defaultReport.reportID}>
+                <ComposerInputArea />
+                <SaveProbe reportID={defaultReport.reportID} />
+            </ComposerProvider>
+        </ReportScreenProviders>,
+    );
+}
+
+function getNarrowComposerInput() {
+    return within(screen.getByTestId(testIds.REPORT_ACTION_COMPOSE)).getByTestId(CONST.COMPOSER.NATIVE_ID);
+}
+
+async function getReportDraftComment(reportID: string) {
+    let value: string | undefined;
+    await TestHelper.getOnyxData({
+        key: `${ONYXKEYS.COLLECTION.REPORT_DRAFT_COMMENT}${reportID}`,
+        callback: (comment) => {
+            value = comment;
+        },
+    });
+    return value;
+}
+
+/**
+ * Advances the clock by an exact amount and drains Onyx's `process.nextTick` notifications.
+ * `waitForBatchedUpdatesWithAct` cannot be used for these cases because it calls `runOnlyPendingTimers`,
+ * which would fire the very debounce whose timing is under test.
+ */
+async function settle(advanceMs = 0) {
+    await act(async () => {
+        if (advanceMs > 0) {
+            jest.advanceTimersByTime(advanceMs);
+        }
+        for (let i = 0; i < 12; i++) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => {
+                process.nextTick(resolve);
+            });
+        }
+    });
 }
 
 function renderNestedThreadNarrowMessageCompose() {
@@ -508,6 +584,124 @@ describe('ReportActionMessageEdit layout and draft (narrow vs wide)', () => {
         // to the parent's own report, not to that report's parentReportID.
         expect(await getReportActionDraftMessage(rootChatReport.reportID, rootChatMessageAction.reportActionID)).toBe('Parent body, edited');
         expect(await getReportActionDraftMessage(threadReport.reportID, rootChatMessageAction.reportActionID)).toBeUndefined();
+    });
+
+    describe('a draft save left pending when the edit ends (#98580)', () => {
+        it('does not resurrect the edit draft when Save happens inside the debounce window', async () => {
+            await seedReportAndActions();
+            await setReportActionDraftWithMessage('Original body');
+            await waitForBatchedUpdatesWithAct();
+
+            renderNarrowMessageComposeWithSaveButton();
+            await waitForBatchedUpdatesWithAct();
+            expect(screen.getByTestId(testIds.EDITING_MESSAGE_ACTION_ROW)).toBeOnTheScreen();
+
+            // The last keystroke arms the debounced report-action draft save.
+            fireEvent.changeText(getNarrowComposerInput(), 'Original body edited');
+            await settle();
+
+            // Save is tapped before DRAFT_SAVE_DEBOUNCE_TIME elapses, so that save is still pending.
+            await settle(282);
+            fireEvent.press(screen.getByTestId('messageEditSave_mainComposer'));
+            // The edit submit is deferred one tick to let native autocorrection land.
+            await settle(1);
+
+            expect(await getReportActionDraftMessage(defaultReport.reportID, commentAction.reportActionID)).toBeUndefined();
+            expect(screen.queryByTestId(testIds.EDITING_MESSAGE_ACTION_ROW)).toBeNull();
+
+            // The pending save must not write the cleared draft back and re-open the editor.
+            await settle(CONST.TIMING.DRAFT_SAVE_DEBOUNCE_TIME);
+
+            expect(await getReportActionDraftMessage(defaultReport.reportID, commentAction.reportActionID)).toBeUndefined();
+            expect(screen.queryByTestId(testIds.EDITING_MESSAGE_ACTION_ROW)).toBeNull();
+            expect(screen.getByTestId(testIds.DRAFT_MESSAGE_ACTION_ROW)).toBeOnTheScreen();
+        });
+
+        it('does not bring discarded text back when Cancel happens inside the debounce window', async () => {
+            await seedReportAndActions();
+            await setReportActionDraftWithMessage('Original body');
+            await waitForBatchedUpdatesWithAct();
+
+            renderNarrowMessageComposeWithSaveButton();
+            await waitForBatchedUpdatesWithAct();
+
+            fireEvent.changeText(getNarrowComposerInput(), 'Typed then discarded');
+            await settle();
+            await settle(120);
+
+            fireEvent.press(screen.getByTestId(testIds.MESSAGE_EDIT_CANCEL_MAIN_COMPOSER));
+            await settle(1);
+            await settle(CONST.TIMING.DRAFT_SAVE_DEBOUNCE_TIME);
+
+            expect(await getReportActionDraftMessage(defaultReport.reportID, commentAction.reportActionID)).toBeUndefined();
+            expect(screen.queryByTestId(testIds.EDITING_MESSAGE_ACTION_ROW)).toBeNull();
+        });
+
+        it('does not overwrite an edit started on another message right after saving', async () => {
+            await seedReportAndActions();
+            await setReportActionDraftWithMessage('Original body');
+            await waitForBatchedUpdatesWithAct();
+
+            renderNarrowMessageComposeWithSaveButton();
+            await waitForBatchedUpdatesWithAct();
+
+            fireEvent.changeText(getNarrowComposerInput(), 'Original body edited');
+            await settle();
+            await settle(282);
+            fireEvent.press(screen.getByTestId('messageEditSave_mainComposer'));
+            await settle(1);
+
+            // The user immediately picks "Edit comment" on a different message.
+            await act(async () => {
+                saveReportActionDraft(defaultReport.reportID, otherCommentAction, {[otherCommentAction.reportActionID]: otherCommentAction}, 'Second message');
+            });
+            await settle(1);
+            await settle(CONST.TIMING.DRAFT_SAVE_DEBOUNCE_TIME);
+
+            // `saveReportActionDraft` writes with `Onyx.setCollection`, so a stale call would replace the
+            // whole collection: the new edit would be lost and the finished one restored in its place.
+            expect(await getReportActionDraftMessage(defaultReport.reportID, otherCommentAction.reportActionID)).toBe('Second message');
+            expect(await getReportActionDraftMessage(defaultReport.reportID, commentAction.reportActionID)).toBeUndefined();
+        });
+
+        it('does not overwrite the new draft when the edit target is switched without saving', async () => {
+            await seedReportAndActions();
+            await setReportActionDraftWithMessage('Original body');
+            await waitForBatchedUpdatesWithAct();
+
+            renderNarrowMessageComposeWithSaveButton();
+            await waitForBatchedUpdatesWithAct();
+
+            fireEvent.changeText(getNarrowComposerInput(), 'Original body edited');
+            await settle();
+            await settle(282);
+
+            // "Edit comment" on another message while the first edit is still open. The editing state never
+            // returns to `off` here, so nothing that keys on the edit ending can help.
+            await act(async () => {
+                saveReportActionDraft(defaultReport.reportID, otherCommentAction, {[otherCommentAction.reportActionID]: otherCommentAction}, 'Second message');
+            });
+            await settle(1);
+            await settle(CONST.TIMING.DRAFT_SAVE_DEBOUNCE_TIME);
+
+            expect(await getReportActionDraftMessage(defaultReport.reportID, otherCommentAction.reportActionID)).toBe('Second message');
+            expect(await getReportActionDraftMessage(defaultReport.reportID, commentAction.reportActionID)).toBeUndefined();
+        });
+
+        it('still persists the normal composer draft comment', async () => {
+            await seedReportAndActions();
+            await waitForBatchedUpdatesWithAct();
+
+            renderNarrowMessageComposeWithSaveButton();
+            await waitForBatchedUpdatesWithAct();
+            expect(screen.getByTestId(testIds.DRAFT_MESSAGE_ACTION_ROW)).toBeOnTheScreen();
+
+            fireEvent.changeText(getNarrowComposerInput(), 'An unsent message');
+            await settle();
+            await settle(CONST.TIMING.DRAFT_SAVE_DEBOUNCE_TIME + 1);
+
+            expect(await getReportDraftComment(defaultReport.reportID)).toBe('An unsent message');
+        });
     });
 
     it('cancel in narrow main composer returns to normal draft action row', async () => {
