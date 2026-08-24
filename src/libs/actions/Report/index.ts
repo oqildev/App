@@ -929,11 +929,16 @@ function addActions({
         reportCommentText = reportComment.commentText;
     }
 
-    // A pre-generated Concierge reply answers the comment being sent right now, so its position in the chat is
-    // one tick after that comment — nothing more. The four seconds the client waits before revealing it is a
-    // display delay carried by `displayAfter` (see SuggestedFollowup), and must never leak into `created`:
-    // a reply timestamped seconds ahead outranks anything the user sends in the meantime, on the server too,
-    // which is what made the next message read as already answered.
+    // A pre-generated Concierge reply answers the comment being sent right now, so it belongs one tick after
+    // that comment — nothing more. The four seconds the client waits before revealing it is a display delay
+    // carried by `displayAfter` (see SuggestedFollowup) and must never leak into `created`: a reply
+    // timestamped seconds ahead outranks anything the user sends in the meantime, which is what made the
+    // next message read as already answered.
+    //
+    // This value positions the *local* action only. The server is deliberately not told where to put its
+    // copy: it stamps the comment below and then persists the reply against it, so both sides of the pair
+    // come from one clock. Pinning the reply to a client timestamp instead leaves the two stamped by
+    // different clocks, and the pair inverts whenever the round trip outruns the skew estimate.
     const pregeneratedConciergeCreated = pregeneratedResponseParams ? getServerAnchoredDBTime(Date.now(), reportCommentAction?.created) : undefined;
 
     if (file) {
@@ -1061,7 +1066,6 @@ function addActions({
     // Add pregenerated params
     if (pregeneratedResponseParams) {
         parameters.optimisticConciergeReportActionID = pregeneratedResponseParams.optimisticConciergeReportActionID;
-        parameters.optimisticConciergeCreated = pregeneratedConciergeCreated;
         parameters.pregeneratedResponse = pregeneratedResponseParams.pregeneratedResponse;
     }
 

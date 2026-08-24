@@ -6757,10 +6757,15 @@ describe('actions/Report', () => {
                 WRITE_COMMANDS.ADD_COMMENT,
                 expect.objectContaining({
                     optimisticConciergeReportActionID: pendingResponse?.reportAction.reportActionID,
-                    optimisticConciergeCreated: pendingResponse?.reportAction.created,
+                    pregeneratedResponse: 'To set up QuickBooks, go to Settings...',
                 }),
                 expect.anything(),
             );
+
+            // The reply's position is not pinned to a client timestamp. The server stamps the comment and then
+            // persists the reply against it, so the pair can't be split across two clocks.
+            const [, addCommentParams] = apiWriteSpy.mock.calls.find((call) => call.at(0) === WRITE_COMMANDS.ADD_COMMENT) ?? [];
+            expect(addCommentParams).not.toHaveProperty('optimisticConciergeCreated');
 
             // Verify the client did NOT set REPORT_USER_IS_TYPING. The server-owned
             // agentZeroProcessingIndicator is the source of truth for the "Concierge is thinking..."
@@ -6916,12 +6921,9 @@ describe('actions/Report', () => {
                 expect(gapMs).toBeGreaterThan(0);
                 expect(gapMs).toBeLessThan(1000);
 
-                // The client and the server still agree on exactly where the reply sits.
-                expect(apiWriteSpy).toHaveBeenCalledWith(
-                    WRITE_COMMANDS.ADD_COMMENT,
-                    expect.objectContaining({optimisticConciergeCreated: pendingResponse.reportAction.created}),
-                    expect.anything(),
-                );
+                // And that position stays a local one — the server is left to stamp both halves of the pair.
+                const [, addCommentParams] = apiWriteSpy.mock.calls.find((call) => call.at(0) === WRITE_COMMANDS.ADD_COMMENT) ?? [];
+                expect(addCommentParams).not.toHaveProperty('optimisticConciergeCreated');
             });
 
             it('still holds the reveal back by the full display delay', async () => {

@@ -89,10 +89,10 @@ function resolveSuggestedFollowup(
     // If there's a pre-generated response, queue it for delayed display.
     const optimisticConciergeReportActionID = rand64();
 
-    // Post the user's comment first. The send path stamps it and reserves the reply's `created` one tick
-    // later, then hands that value back — the same value it ships to the server as `optimisticConciergeCreated`,
-    // so the local action and the canonical one land in the same place. Building the reply first is what
-    // forced the old four-second head start: the reply had to be stamped before the question it answers.
+    // Post the user's comment first. The send path stamps it, reserves the reply's `created` one tick later,
+    // and hands that value back. Building the reply first is what forced the old four-second head start:
+    // the reply had to be stamped before the question it answers, so it needed enough of a lead to still
+    // sort after it.
     const conciergeReplyCreated = addComment({
         report,
         notifyReportID: notifyReportID ?? reportID,
