@@ -79,7 +79,7 @@ import type {LinkToOptions} from '@libs/Navigation/helpers/linkTo/types';
 import {resetOnboardingStackToRoot} from '@libs/Navigation/helpers/OnboardingNavigationUtils';
 import Navigation from '@libs/Navigation/Navigation';
 import enhanceParameters from '@libs/Network/enhanceParameters';
-import {getDBTimeWithSkew, getIsOffline as isOfflineNetwork} from '@libs/NetworkState';
+import {getDBTimeWithSkew, getIsOffline as isOfflineNetwork, getServerAnchoredDBTime} from '@libs/NetworkState';
 import {buildOptimisticNextStep} from '@libs/NextStepUtils';
 import LocalNotification from '@libs/Notification/LocalNotification';
 import {rand64} from '@libs/NumberUtils';
@@ -398,7 +398,6 @@ type OpenReportActionParams = {
 
 type PregeneratedResponseParams = {
     optimisticConciergeReportActionID: string;
-    optimisticConciergeCreated: string;
     pregeneratedResponse: string;
 };
 
@@ -872,6 +871,8 @@ function buildOptimisticResolvedFollowups(reportAction: OnyxEntry<ReportAction>)
  * @param notifyReportID - The report ID we should notify for new actions. This is usually the same as reportID, except when adding a comment to an expense report with a single transaction thread, in which case we want to notify the parent expense report.
  * @param isInSidePanel - Whether the comment is being added from the side panel
  * @param pregeneratedResponseParams - Optional params for pre-generated response (API only; the optimistic action is queued by SuggestedFollowup)
+ * @returns For a pre-generated Concierge reply, the `created` this send reserved for it — the caller queues the optimistic
+ *          action at that exact timestamp so the client and the server agree on where the reply sits. Otherwise undefined.
  */
 function addActions({
     report,
@@ -888,7 +889,7 @@ function addActions({
     delegateAccountID,
     conciergeReportID,
     conciergeThreadReportID,
-}: AddActionsParams) {
+}: AddActionsParams): string | undefined {
     if (!report?.reportID) {
         return;
     }
@@ -927,6 +928,13 @@ function addActions({
         reportCommentAction = reportComment.reportAction;
         reportCommentText = reportComment.commentText;
     }
+
+    // A pre-generated Concierge reply answers the comment being sent right now, so its position in the chat is
+    // one tick after that comment — nothing more. The four seconds the client waits before revealing it is a
+    // display delay carried by `displayAfter` (see SuggestedFollowup), and must never leak into `created`:
+    // a reply timestamped seconds ahead outranks anything the user sends in the meantime, on the server too,
+    // which is what made the next message read as already answered.
+    const pregeneratedConciergeCreated = pregeneratedResponseParams ? getServerAnchoredDBTime(Date.now(), reportCommentAction?.created) : undefined;
 
     if (file) {
         // When we are adding an attachment we will call AddAttachment.
@@ -1053,7 +1061,7 @@ function addActions({
     // Add pregenerated params
     if (pregeneratedResponseParams) {
         parameters.optimisticConciergeReportActionID = pregeneratedResponseParams.optimisticConciergeReportActionID;
-        parameters.optimisticConciergeCreated = pregeneratedResponseParams.optimisticConciergeCreated;
+        parameters.optimisticConciergeCreated = pregeneratedConciergeCreated;
         parameters.pregeneratedResponse = pregeneratedResponseParams.pregeneratedResponse;
     }
 
@@ -1273,6 +1281,8 @@ function addActions({
         Onyx.update(conciergeThreadOnyxData).then(() => Navigation.navigate(getReportRouteForCurrentContext({reportID: conciergeThreadReportID})));
     }
     notifyNewAction(resolvedNotifyReportID, lastAction, lastAction?.actorAccountID === currentUserAccountID);
+
+    return pregeneratedConciergeCreated;
 }
 
 /** Add an attachment with an optional comment to a report */
@@ -1360,11 +1370,11 @@ function addComment({
     delegateAccountID,
     conciergeReportID,
     conciergeThreadReportID,
-}: AddCommentParams) {
+}: AddCommentParams): string | undefined {
     if (shouldPlaySound) {
         playSound(SOUNDS.DONE);
     }
-    addActions({
+    return addActions({
         report,
         notifyReportID,
         ancestors,

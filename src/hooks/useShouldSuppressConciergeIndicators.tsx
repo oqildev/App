@@ -17,7 +17,7 @@ import useSidePanelState from './useSidePanelState';
  *   1. The Concierge welcome state — before any real message activity occurs
  *      in either the side panel or the main DM session.
  *   2. The followup-list pending window — between trickle completion and the
- *      server reply with `<followup-list>`.
+ *      server reply with `<followup-list>`, and only until the user speaks again.
  */
 function useShouldSuppressConciergeIndicators(reportID: string | undefined): boolean {
     const isInSidePanel = useIsInSidePanel();
@@ -43,7 +43,23 @@ function useShouldSuppressConciergeIndicators(reportID: string | undefined): boo
         selector: hasSessionActivitySelector,
     });
 
-    if (pendingFollowupList) {
+    // Case 2 describes a report waiting on the buttons for a reply that already landed. A message sent after
+    // that reply starts a turn of its own, and the wait it describes is over — keeping the report suppressed
+    // is what left that message with no thinking bubble and no typing indicator until the 120s TTL expired.
+    // If the reply can't be resolved, fall through to suppressing, as before.
+    const pendingFollowupActionID = pendingFollowupList?.reportActionID;
+    const hasUserActionSincePendingFollowupSelector = (actions: OnyxEntry<ReportActions>) => {
+        const pendingFollowupCreated = pendingFollowupActionID ? actions?.[pendingFollowupActionID]?.created : undefined;
+        if (!actions || !pendingFollowupCreated) {
+            return false;
+        }
+        return Object.values(actions).some((action) => action.actorAccountID === currentUserAccountID && !isCreatedAction(action) && action.created > pendingFollowupCreated);
+    };
+    const [hasUserActionSincePendingFollowup] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`, {
+        selector: hasUserActionSincePendingFollowupSelector,
+    });
+
+    if (pendingFollowupList && !hasUserActionSincePendingFollowup) {
         return true;
     }
 

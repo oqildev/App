@@ -358,6 +358,8 @@ type BuildOptimisticAddCommentReportActionParams = {
     anchorCreatedToServer?: boolean;
     /** Last action's `created` in the report; keeps the anchored `created` monotonic across successive sends. */
     lastActionCreated?: string;
+    /** Exact `created` to stamp, when the action's position was already decided elsewhere. Overrides every other timing option. */
+    created?: string;
 };
 
 type OptimisticReportAction = {
@@ -6853,6 +6855,7 @@ function buildOptimisticAddCommentReportAction({
     delegateAccountIDParam,
     anchorCreatedToServer = false,
     lastActionCreated,
+    created,
 }: BuildOptimisticAddCommentReportActionParams): OptimisticReportAction {
     const commentText = isHTML ? (text ?? '') : getParsedComment(text ?? '', {reportID});
     const attachmentHtml = getUploadingAttachmentHtml(file, attachmentID);
@@ -6883,7 +6886,7 @@ function buildOptimisticAddCommentReportAction({
             ],
             automatic: false,
             avatar: allPersonalDetails?.[accountID]?.avatar,
-            created: anchorCreatedToServer ? getServerAnchoredDBTime(Date.now() + createdOffset, lastActionCreated) : getDBTimeWithSkew(Date.now() + createdOffset),
+            created: created ?? (anchorCreatedToServer ? getServerAnchoredDBTime(Date.now() + createdOffset, lastActionCreated) : getDBTimeWithSkew(Date.now() + createdOffset)),
             message: [
                 {
                     translationKey: isAttachmentOnly ? CONST.TRANSLATION_KEYS.ATTACHMENT : '',

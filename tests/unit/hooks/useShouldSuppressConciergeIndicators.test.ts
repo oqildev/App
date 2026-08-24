@@ -112,6 +112,79 @@ describe('useShouldSuppressConciergeIndicators', () => {
         });
     });
 
+    describe('a message sent while the followup list is still loading (#97049)', () => {
+        const CONCIERGE_REPLY_ACTION_ID = '200';
+        const SECOND_MESSAGE_ACTION_ID = '300';
+        const REPLY_CREATED = '2026-06-29 10:00:00.100';
+
+        /** The state right after a pre-generated reply is revealed: the reply is in the report and its buttons are pending. */
+        async function givenRevealedReplyAwaitingButtons(extraActions: Record<string, ReportAction> = {}) {
+            await Onyx.set(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${REPORT_ID}`, {
+                [REPORT_ACTION_ID]: buildAction({created: SESSION_START_TIME}),
+                [CONCIERGE_REPLY_ACTION_ID]: buildAction({
+                    reportActionID: CONCIERGE_REPLY_ACTION_ID,
+                    actorAccountID: CONST.ACCOUNT_ID.CONCIERGE,
+                    created: REPLY_CREATED,
+                }),
+                ...extraActions,
+            });
+            await Onyx.set(`${ONYXKEYS.COLLECTION.CONCIERGE_PENDING_FOLLOWUP_LIST}${REPORT_ID}`, {
+                reportActionID: CONCIERGE_REPLY_ACTION_ID,
+                createdAt: Date.now(),
+            });
+            await waitForBatchedUpdates();
+        }
+
+        it('stops suppressing indicators once the user sends after that reply', async () => {
+            // Given the user sends a message while the reply's buttons are still loading
+            await givenRevealedReplyAwaitingButtons({
+                [SECOND_MESSAGE_ACTION_ID]: buildAction({
+                    reportActionID: SECOND_MESSAGE_ACTION_ID,
+                    actorAccountID: CURRENT_USER_ACCOUNT_ID,
+                    created: '2026-06-29 10:00:05.000',
+                }),
+            });
+
+            const {result} = renderHook(() => useShouldSuppressConciergeIndicators(REPORT_ID));
+
+            // Then the new turn gets its thinking bubble and typing indicator back, instead of nothing
+            // until the 120s TTL expires.
+            await waitFor(() => {
+                expect(result.current).toBe(false);
+            });
+        });
+
+        it('keeps suppressing while only the question that produced the reply precedes it', async () => {
+            // Given nothing but the question the reply answers
+            await givenRevealedReplyAwaitingButtons();
+
+            const {result} = renderHook(() => useShouldSuppressConciergeIndicators(REPORT_ID));
+
+            // Then the skeleton stays the only loading affordance, exactly as before
+            await waitFor(() => {
+                expect(result.current).toBe(true);
+            });
+        });
+
+        it('keeps suppressing when the newer action is Concierge, not the user', async () => {
+            // Given Concierge itself posts again while the buttons are pending
+            await givenRevealedReplyAwaitingButtons({
+                [SECOND_MESSAGE_ACTION_ID]: buildAction({
+                    reportActionID: SECOND_MESSAGE_ACTION_ID,
+                    actorAccountID: CONST.ACCOUNT_ID.CONCIERGE,
+                    created: '2026-06-29 10:00:05.000',
+                }),
+            });
+
+            const {result} = renderHook(() => useShouldSuppressConciergeIndicators(REPORT_ID));
+
+            // Then suppression holds — only a user turn ends the window
+            await waitFor(() => {
+                expect(result.current).toBe(true);
+            });
+        });
+    });
+
     describe('session activity (Concierge welcome state)', () => {
         beforeEach(() => {
             // An active session for the main Concierge DM.

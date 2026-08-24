@@ -9,7 +9,7 @@ import useAncestors from '@hooks/useAncestors';
 
 import type {GuidedSetupData, TaskForParameters} from '@libs/actions/Report';
 import markAllMessagesAsRead from '@libs/actions/Report/MarkAllMessageAsRead';
-import {CONCIERGE_RESPONSE_DELAY_MS, resolveSuggestedFollowup} from '@libs/actions/Report/SuggestedFollowup';
+import {applyPendingConciergeAction, CONCIERGE_RESPONSE_DELAY_MS, resolveSuggestedFollowup} from '@libs/actions/Report/SuggestedFollowup';
 import {getOnboardingMessages} from '@libs/actions/Welcome/OnboardingFlow';
 import * as API from '@libs/API';
 import {WRITE_COMMANDS} from '@libs/API/types';
@@ -17,7 +17,7 @@ import HttpUtils from '@libs/HttpUtils';
 import Navigation from '@libs/Navigation/Navigation';
 import {buildOptimisticNextStep} from '@libs/NextStepUtils';
 import {getAccountIDsByLogins} from '@libs/PersonalDetailsUtils';
-import {getOriginalMessage, isActionOfType, isDeletedAction} from '@libs/ReportActionsUtils';
+import {getOriginalMessage, getReportActionText, isActionOfType, isDeletedAction} from '@libs/ReportActionsUtils';
 import playSound, {SOUNDS} from '@libs/Sound';
 
 import {toggleEmojiReaction} from '@userActions/EmojiReactions';
@@ -40,6 +40,7 @@ import type * as OnyxTypes from '@src/types/onyx';
 
 import type {OnyxCollection, OnyxEntry, OnyxUpdate} from 'react-native-onyx';
 
+import {getNewestReportActionSelector} from '@selectors/ReportAction';
 import {addSeconds, format, subMinutes} from 'date-fns';
 import {toZonedTime} from 'date-fns-tz';
 import Onyx from 'react-native-onyx';
@@ -6815,6 +6816,120 @@ describe('actions/Report', () => {
             expect(userCommentAction?.created).toBeDefined();
             expect(pendingResponse?.reportAction.created).toBeDefined();
             expect(new Date(pendingResponse?.reportAction.created ?? 0).getTime()).toBeGreaterThan(new Date(userCommentAction?.created ?? 0).getTime());
+        });
+
+        describe('a message sent while a pre-generated reply is still pending (#97049)', () => {
+            const CONCIERGE_MESSAGE_HTML =
+                '<p>Here is help</p><followup-list><followup><followup-text>How do I set up QuickBooks?</followup-text><followup-response>To set up QuickBooks, go to Settings...</followup-response></followup></followup-list>';
+            const SECOND_MESSAGE_TEXT = 'actually, what about Xero?';
+            const toMs = (dbTime: string | undefined) => new Date(`${(dbTime ?? '').replace(' ', 'T')}Z`).valueOf();
+
+            /**
+             * Clicks a follow-up carrying a pre-generated reply, then sends a freeform message before it is revealed.
+             * The optimistic comment's `created` is the exact value shipped to the server as `clientCreatedTime`,
+             * so reading it back from Onyx says what the backend was told.
+             */
+            async function clickFollowupThenSend() {
+                const conciergeAction = createMock<OnyxTypes.ReportAction>({
+                    reportActionID: REPORT_ACTION_ID,
+                    actorAccountID: CONST.ACCOUNT_ID.CONCIERGE,
+                    message: [{html: CONCIERGE_MESSAGE_HTML, text: 'Here is help', type: CONST.REPORT.MESSAGE.TYPE.COMMENT}],
+                });
+
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.REPORT}${REPORT_ID}`, report);
+                await Onyx.merge(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${REPORT_ID}`, {[REPORT_ACTION_ID]: conciergeAction});
+                await Onyx.merge(ONYXKEYS.CONCIERGE_REPORT_ID, REPORT_ID);
+                await waitForBatchedUpdates();
+
+                resolveSuggestedFollowup(
+                    report,
+                    undefined,
+                    conciergeAction,
+                    {text: 'How do I set up QuickBooks?', response: 'To set up QuickBooks, go to Settings...'},
+                    CONST.DEFAULT_TIME_ZONE,
+                    TEST_USER_ACCOUNT_ID,
+                    TEST_USER_EMAIL,
+                    undefined,
+                    REPORT_ID,
+                );
+                await waitForBatchedUpdates();
+
+                const pendingResponse = await getOnyxValue(`${ONYXKEYS.COLLECTION.PENDING_CONCIERGE_RESPONSE}${REPORT_ID}` as const);
+                if (!pendingResponse) {
+                    throw new Error('the follow-up click did not queue a pre-generated reply');
+                }
+                const reportAfterFollowup = await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT}${REPORT_ID}` as const);
+
+                // The user sends before the reply is revealed — the whole point of the repro.
+                Report.addComment({
+                    report: reportAfterFollowup,
+                    notifyReportID: REPORT_ID,
+                    ancestors: [],
+                    text: SECOND_MESSAGE_TEXT,
+                    timezoneParam: CONST.DEFAULT_TIME_ZONE,
+                    currentUserAccountID: TEST_USER_ACCOUNT_ID,
+                    delegateAccountID: undefined,
+                    conciergeReportID: REPORT_ID,
+                });
+                await waitForBatchedUpdates();
+
+                const reportActions = await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${REPORT_ID}` as const);
+                const question = Object.values(reportActions ?? {}).find((action) => getReportActionText(action) === 'How do I set up QuickBooks?');
+                const secondMessage = Object.values(reportActions ?? {}).find((action) => getReportActionText(action) === SECOND_MESSAGE_TEXT);
+                if (!question || !secondMessage) {
+                    throw new Error('expected both the follow-up question and the freeform message in the report');
+                }
+
+                return {pendingResponse, question, secondMessage, reportActions};
+            }
+
+            it('sends it to the server stamped after the reply the click reserved', async () => {
+                const {pendingResponse, secondMessage} = await clickFollowupThenSend();
+
+                // Before the fix the reply was reserved ~4s ahead, so this shipped ~3989ms *before* it and the
+                // turn read as already answered.
+                expect(toMs(secondMessage.created)).toBeGreaterThan(toMs(pendingResponse.reportAction.created));
+            });
+
+            it('leaves it as the newest action in the report', async () => {
+                const {pendingResponse, secondMessage} = await clickFollowupThenSend();
+
+                // Reveal the reply the way usePendingConciergeResponse does once displayAfter elapses.
+                applyPendingConciergeAction(REPORT_ID, pendingResponse.reportAction);
+                await waitForBatchedUpdates();
+
+                const reportActions = await getOnyxValue(`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${REPORT_ID}` as const);
+                const newest = getNewestReportActionSelector(reportActions);
+
+                // Before the fix the future-dated reply stayed newest for good, which is what suppressed the
+                // thinking bubble for the message the user had just sent.
+                expect(newest?.reportActionID).toBe(secondMessage.reportActionID);
+                expect(newest?.actorAccountID).not.toBe(CONST.ACCOUNT_ID.CONCIERGE);
+            });
+
+            it('keeps the reply one tick after the question it answers, not four seconds', async () => {
+                const {pendingResponse, question} = await clickFollowupThenSend();
+
+                // The clamp puts the reply a millisecond past the question. A whole second of headroom keeps this
+                // from being timing-sensitive while still ruling out the old four-second reservation.
+                const gapMs = toMs(pendingResponse.reportAction.created) - toMs(question.created);
+                expect(gapMs).toBeGreaterThan(0);
+                expect(gapMs).toBeLessThan(1000);
+
+                // The client and the server still agree on exactly where the reply sits.
+                expect(apiWriteSpy).toHaveBeenCalledWith(
+                    WRITE_COMMANDS.ADD_COMMENT,
+                    expect.objectContaining({optimisticConciergeCreated: pendingResponse.reportAction.created}),
+                    expect.anything(),
+                );
+            });
+
+            it('still holds the reveal back by the full display delay', async () => {
+                const {pendingResponse} = await clickFollowupThenSend();
+
+                // The four seconds are a reveal delay and belong to displayAfter — moving `created` must not touch them.
+                expect(pendingResponse.displayAfter).toBeGreaterThan(Date.now() + CONCIERGE_RESPONSE_DELAY_MS / 2);
+            });
         });
 
         it('should emit Log.info followup_clicked telemetry when a suggested followup is resolved', async () => {

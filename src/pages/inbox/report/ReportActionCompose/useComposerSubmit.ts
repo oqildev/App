@@ -46,6 +46,8 @@ function useComposerSubmit(reportID: string) {
     const [conciergeReportID] = useOnyx(ONYXKEYS.CONCIERGE_REPORT_ID);
     const {isBetaEnabled} = usePermissions();
     const [isComposerFullSize = false] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT_IS_COMPOSER_FULL_SIZE}${reportID}`);
+    const [pendingConciergeResponse] = useOnyx(`${ONYXKEYS.COLLECTION.PENDING_CONCIERGE_RESPONSE}${reportID}`);
+    const [pendingConciergeFollowupList] = useOnyx(`${ONYXKEYS.COLLECTION.CONCIERGE_PENDING_FOLLOWUP_LIST}${reportID}`);
     const delegateAccountID = useDelegateAccountID();
 
     const {composerRef, attachmentFileRef, textRef} = useComposerMeta();
@@ -84,7 +86,13 @@ function useComposerSubmit(reportID: string) {
         // "...is working on your chat" while a human is handling it). Clear it optimistically so it disappears
         // the instant the user sends, instead of lingering until the ProcessAgentZeroRequest job runs; the
         // backend re-establishes the correct status afterward.
-        if (isConciergeChatReport(report, conciergeReportID)) {
+        //
+        // "From a prior turn" is the premise, so hold off while a pre-generated follow-up turn is still
+        // reconciling: the indicator then belongs to a turn that is genuinely in flight, and the server has
+        // already emitted it and won't emit it again. Clearing it there hides the only sign that anything is
+        // pending, and takes down the safety timer that fetches a late reply along with it.
+        const hasPendingConciergeTurn = !!pendingConciergeResponse || !!pendingConciergeFollowupList;
+        if (isConciergeChatReport(report, conciergeReportID) && !hasPendingConciergeTurn) {
             clearAgentZeroProcessingIndicator(reportID, CONST.ACCOUNT_ID.CONCIERGE);
         }
 
