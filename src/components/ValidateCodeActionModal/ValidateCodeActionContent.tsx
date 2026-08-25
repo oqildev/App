@@ -29,6 +29,7 @@ function ValidateCodeActionContent({
     handleSubmitForm,
     clearError,
     sendValidateCode,
+    validateCodeReasonCode,
     isLoading,
     threeDotsMenuItems = [],
     onThreeDotsButtonPress = () => {},
@@ -49,14 +50,19 @@ function ValidateCodeActionContent({
         // The validateCode is account-level, so skip sending if one was already requested within the resend window (e.g. a page reload)
         const requestedAt = validateCodeAction?.lastValidateCodeRequestedAt;
         const sentRecently = !!requestedAt && Date.now() - requestedAt < CONST.REQUEST_CODE_DELAY * CONST.MILLISECONDS_PER_SECOND;
-        if (sentRecently) {
+        // A code only satisfies the flow it was requested for, so a recent request is this screen's own only when the
+        // reasons match. Without that check, a flow chained straight after another (e.g. account validation forwarding
+        // into "add contact method") would silently reuse the previous flow's stamp and never request its own code.
+        // Screens that don't declare a reason fall back to the plain "anything sent recently" behaviour.
+        const sentRecentlyForSameReason = sentRecently && (!validateCodeReasonCode || validateCodeAction?.lastValidateCodeReason === validateCodeReasonCode);
+        if (sentRecentlyForSameReason) {
             return;
         }
 
         sendValidateCode();
         // We only want to decide whether to send once Onyx has hydrated, so we depend on the hydration metadata rather than the value
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sendValidateCode, validateCodeActionMetadata]);
+    }, [sendValidateCode, validateCodeActionMetadata, validateCodeReasonCode]);
 
     const hide = useCallback(() => {
         clearError();

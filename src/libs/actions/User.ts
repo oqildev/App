@@ -524,6 +524,7 @@ function requestValidateCodeAction(params?: ResendValidateCodeParams) {
             key: ONYXKEYS.VALIDATE_ACTION_CODE,
             value: {
                 lastValidateCodeRequestedAt: requestedAt,
+                lastValidateCodeReason: params?.reasonCode ?? null,
                 isLoading: true,
                 pendingFields: {
                     actionVerified: CONST.RED_BRICK_ROAD_PENDING_ACTION.ADD,
@@ -557,6 +558,7 @@ function requestValidateCodeAction(params?: ResendValidateCodeParams) {
             key: ONYXKEYS.VALIDATE_ACTION_CODE,
             value: {
                 lastValidateCodeRequestedAt: null,
+                lastValidateCodeReason: null,
                 isLoading: false,
                 errorFields: {
                     actionVerified: ErrorUtils.getMicroSecondOnyxErrorWithTranslationKey('contacts.genericFailureMessages.requestContactMethodValidateCode'),
@@ -601,7 +603,7 @@ function validateSecondaryLogin(contactMethod: string, validateCode: string) {
             },
         },
     ];
-    const successData: Array<OnyxUpdate<typeof ONYXKEYS.LOGINS | typeof ONYXKEYS.ACCOUNT>> = [
+    const successData: Array<OnyxUpdate<typeof ONYXKEYS.LOGINS | typeof ONYXKEYS.ACCOUNT | typeof ONYXKEYS.VALIDATE_ACTION_CODE>> = [
         {
             onyxMethod: Onyx.METHOD.MERGE,
             key: ONYXKEYS.LOGINS,
@@ -623,6 +625,17 @@ function validateSecondaryLogin(contactMethod: string, validateCode: string) {
             value: {
                 isLoading: false,
                 validated: true,
+            },
+        },
+        // The code the user just entered is spent, so it must stop standing in for the next flow's code.
+        // Clearing it here rather than on unmount keeps it in the same batch as `validated: true` - the flip the
+        // forward navigation keys off - so the next screen cannot mount and read a stale stamp.
+        {
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: ONYXKEYS.VALIDATE_ACTION_CODE,
+            value: {
+                lastValidateCodeRequestedAt: null,
+                lastValidateCodeReason: null,
             },
         },
     ];
@@ -1675,13 +1688,23 @@ function verifyAddSecondaryLoginCode(validateCode: string) {
         },
     ];
 
-    const successData: Array<OnyxUpdate<typeof ONYXKEYS.PENDING_CONTACT_ACTION>> = [
+    const successData: Array<OnyxUpdate<typeof ONYXKEYS.PENDING_CONTACT_ACTION | typeof ONYXKEYS.VALIDATE_ACTION_CODE>> = [
         {
             onyxMethod: Onyx.METHOD.MERGE,
             key: ONYXKEYS.PENDING_CONTACT_ACTION,
             value: {
                 isVerifiedValidateActionCode: true,
                 isLoading: false,
+            },
+        },
+        // Same reasoning as validateSecondaryLogin: the entered code is spent, so it must not suppress the
+        // next validateCode screen in this flow.
+        {
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: ONYXKEYS.VALIDATE_ACTION_CODE,
+            value: {
+                lastValidateCodeRequestedAt: null,
+                lastValidateCodeReason: null,
             },
         },
     ];

@@ -1,6 +1,7 @@
 import type {PopoverMenuItem} from '@components/PopoverMenu';
 
 import type {Errors, PendingAction} from '@src/types/onyx/OnyxCommon';
+import type {ValidateCodeReason} from '@src/types/onyx/VerifyValidateCodeAction';
 
 type ValidateCodeActionContentProps = {
     /** Title of the modal */
@@ -32,6 +33,13 @@ type ValidateCodeActionContentProps = {
 
     /** Function is called when validate code modal is mounted and on validateCode resend */
     sendValidateCode: () => void;
+
+    /**
+     * The flow this screen needs a code for. A validateCode only satisfies the flow it was requested for, so when this
+     * is set, a code requested recently for a *different* flow no longer suppresses this screen's own request.
+     * Screens that leave it undefined keep the previous behaviour of skipping the send after any recent request.
+     */
+    validateCodeReasonCode?: ValidateCodeReason;
 
     /** Whether the form is loading or not */
     isLoading?: boolean;

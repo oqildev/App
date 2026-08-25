@@ -24,6 +24,8 @@ function DynamicNewContactMethodConfirmValidateCodePage() {
     const contactMethod = getContactMethod(account?.primaryLogin, session?.email);
     const [pendingContactAction] = useOnyx(ONYXKEYS.PENDING_CONTACT_ACTION);
     const validateCodeError = getLatestErrorField(pendingContactAction, 'addedLogin');
+    // Declared once so the reason we request the code under and the reason the mount guard compares against can't drift apart
+    const validateCodeReasonCode = COMMON_CONST.VALIDATE_CODE_REASONS.ADD_CONTACT_METHOD;
 
     // Guards against firing twice: once this screen is replaced, useDynamicBackPath (reactive to
     // navigation state) recomputes listPath against the NEW screen, so a second effect run would
@@ -42,7 +44,8 @@ function DynamicNewContactMethodConfirmValidateCodePage() {
     return (
         <ValidateCodeActionContent
             title={translate('delegate.makeSureItIsYou')}
-            sendValidateCode={() => requestValidateCodeAction({reasonCode: COMMON_CONST.VALIDATE_CODE_REASONS.ADD_CONTACT_METHOD})}
+            sendValidateCode={() => requestValidateCodeAction({reasonCode: validateCodeReasonCode})}
+            validateCodeReasonCode={validateCodeReasonCode}
             descriptionPrimary={translate('contacts.enterSecurityCode', contactMethod)}
             validateCodeActionErrorField="addedLogin"
             validateError={validateCodeError}

@@ -48,7 +48,9 @@ function VerifyAccountPageBase({navigateBackTo, navigateForwardTo, handleClose, 
 
     useEffect(() => () => clearUnvalidatedNewContactMethodAction(), []);
 
-    const sendValidateCode = () => requestValidateCodeAction({reasonCode: COMMON_CONST.VALIDATE_CODE_REASONS.VALIDATE_ACCOUNT});
+    // Declared once so the reason we request the code under and the reason the mount guard compares against can't drift apart
+    const validateCodeReasonCode = COMMON_CONST.VALIDATE_CODE_REASONS.VALIDATE_ACCOUNT;
+    const sendValidateCode = () => requestValidateCodeAction({reasonCode: validateCodeReasonCode});
 
     const handleSubmitForm = useCallback(
         (validateCode: string) => {
@@ -110,6 +112,7 @@ function VerifyAccountPageBase({navigateBackTo, navigateForwardTo, handleClose, 
             descriptionPrimary={translate('contacts.featureRequiresValidate')}
             descriptionSecondary={translate('contacts.enterSecurityCode', contactMethod)}
             sendValidateCode={sendValidateCode}
+            validateCodeReasonCode={validateCodeReasonCode}
             validateCodeActionErrorField="validateLogin"
             validatePendingAction={loginData?.pendingFields?.validateCodeSent}
             handleSubmitForm={handleSubmitForm}

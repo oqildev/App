@@ -254,13 +254,23 @@ describe('actions/User', () => {
             const onyxData = mockAPI.write.mock.calls.at(0)?.[2];
             const successData = onyxData?.successData ?? [];
 
-            expect(successData).toHaveLength(1);
+            expect(successData).toHaveLength(2);
             expect(successData.at(0)).toEqual({
                 onyxMethod: Onyx.METHOD.MERGE,
                 key: ONYXKEYS.PENDING_CONTACT_ACTION,
                 value: {
                     isVerifiedValidateActionCode: true,
                     isLoading: false,
+                },
+            });
+
+            // And the code the user just spent stops standing in for the next validateCode screen in this flow
+            expect(successData.at(1)).toEqual({
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: ONYXKEYS.VALIDATE_ACTION_CODE,
+                value: {
+                    lastValidateCodeRequestedAt: null,
+                    lastValidateCodeReason: null,
                 },
             });
         });
@@ -351,6 +361,50 @@ describe('actions/User', () => {
             });
         });
 
+        it('should record the reason in the same update as the timestamp, so a screen can tell whose code it was', () => {
+            // When a code is requested for the add-contact-method flow
+            UserActions.requestValidateCodeAction({reasonCode: COMMON_CONST.VALIDATE_CODE_REASONS.ADD_CONTACT_METHOD});
+
+            return waitForBatchedUpdates().then(() => {
+                const onyxData = mockAPI.write.mock.calls.at(0)?.[2];
+                const optimisticUpdate = onyxData?.optimisticData?.find((update) => update.key === ONYXKEYS.VALIDATE_ACTION_CODE);
+                const failureUpdate = onyxData?.failureData?.find((update) => update.key === ONYXKEYS.VALIDATE_ACTION_CODE);
+
+                // expect.any(...) is typed as `any`; hold it in an `unknown` so the matcher can be used without an unsafe assignment.
+                const anyNumber: unknown = expect.any(Number);
+
+                // Then the reason rides in the very same merge as the timestamp - never a separate write - so a screen
+                // reading a recent timestamp always sees the matching reason and never has to race the two apart.
+                expect(optimisticUpdate?.value).toEqual(
+                    expect.objectContaining({
+                        lastValidateCodeRequestedAt: anyNumber,
+                        lastValidateCodeReason: COMMON_CONST.VALIDATE_CODE_REASONS.ADD_CONTACT_METHOD,
+                    }),
+                );
+
+                // And a failed request clears both halves together, so it can neither suppress nor mislabel the next send
+                expect(failureUpdate?.value).toEqual(
+                    expect.objectContaining({
+                        lastValidateCodeRequestedAt: null,
+                        lastValidateCodeReason: null,
+                    }),
+                );
+            });
+        });
+
+        it('should record a null reason when called without params, so no screen mistakes the code for its own', () => {
+            // When a code is requested with no reason (e.g. physical-card shipping)
+            UserActions.requestValidateCodeAction();
+
+            return waitForBatchedUpdates().then(() => {
+                const onyxData = mockAPI.write.mock.calls.at(0)?.[2];
+                const optimisticUpdate = onyxData?.optimisticData?.find((update) => update.key === ONYXKEYS.VALIDATE_ACTION_CODE);
+
+                // Then the stored reason is explicitly null rather than left over from an earlier request
+                expect(optimisticUpdate?.value).toEqual(expect.objectContaining({lastValidateCodeReason: null}));
+            });
+        });
+
         it('should forward no reason to the backend when called without params (e.g. physical-card shipping)', () => {
             // When requestValidateCodeAction is called with no params
             UserActions.requestValidateCodeAction();
@@ -374,6 +428,50 @@ describe('actions/User', () => {
                 expect(mockAPI.write.mock.calls.at(0)?.[0]).toBe(WRITE_COMMANDS.RESEND_VALIDATE_CODE);
                 expect(mockAPI.write.mock.calls.at(0)?.[1]).toEqual({reasonCode: COMMON_CONST.VALIDATE_CODE_REASONS.REVEAL_CARD_DETAILS, reasonCardID});
             });
+        });
+    });
+
+    describe('validateSecondaryLogin', () => {
+        it('should clear the spent validate-code stamp in the same success batch that marks the account validated', async () => {
+            // Given a user validating their account with the code they were emailed
+            const contactMethod = 'test@example.com';
+            const validateCode = '123456';
+
+            // When validateSecondaryLogin succeeds
+            UserActions.validateSecondaryLogin(contactMethod, validateCode);
+            await waitForBatchedUpdates();
+
+            const onyxData = mockAPI.write.mock.calls.at(0)?.[2];
+            const successData = onyxData?.successData ?? [];
+            const accountUpdate = successData.find((update) => update.key === ONYXKEYS.ACCOUNT);
+            const validateActionCodeUpdate = successData.find((update) => update.key === ONYXKEYS.VALIDATE_ACTION_CODE);
+
+            // Then the stamp is cleared alongside `validated: true` rather than in an unmount cleanup. That flip is what
+            // forwards the user to the next screen, so landing both in one batch means the next screen can never mount
+            // and read a stamp that belongs to the code just spent.
+            expect(mockAPI.write.mock.calls.at(0)?.[0]).toBe(WRITE_COMMANDS.VALIDATE_SECONDARY_LOGIN);
+            expect(accountUpdate?.value).toEqual(expect.objectContaining({validated: true}));
+            expect(validateActionCodeUpdate?.value).toEqual({
+                lastValidateCodeRequestedAt: null,
+                lastValidateCodeReason: null,
+            });
+        });
+
+        it('should not clear the stamp on failure, so a wrong code cannot hand the next screen a free send', async () => {
+            // Given a user submitting a code
+            const contactMethod = 'test@example.com';
+            const validateCode = '123456';
+
+            // When the request fails
+            UserActions.validateSecondaryLogin(contactMethod, validateCode);
+            await waitForBatchedUpdates();
+
+            const onyxData = mockAPI.write.mock.calls.at(0)?.[2];
+            const failureData = onyxData?.failureData ?? [];
+
+            // Then nothing touches the validate-code stamp - the code was never consumed, so the existing resend
+            // window still stands and keeps protecting against duplicate sends
+            expect(failureData.find((update) => update.key === ONYXKEYS.VALIDATE_ACTION_CODE)).toBeUndefined();
         });
     });
 
