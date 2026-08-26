@@ -271,6 +271,8 @@ const CONST = {
         RECOVERY_DURATION: 150,
     },
     ANIMATION_IN_TIMING: 100,
+    /** How long the low-resolution preview takes to dissolve once the full-resolution image behind it has rendered */
+    IMAGE_PREVIEW_FADE_OUT_DURATION: 300,
     COMPOSER_FOCUS_DELAY: 150,
     MAX_TRANSITION_DURATION_MS: 1000,
     MAX_TRANSITION_START_WAIT_MS: 1000,
