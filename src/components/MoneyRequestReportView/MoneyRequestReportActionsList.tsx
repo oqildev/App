@@ -32,6 +32,7 @@ import {isTrackOnboardingChoice} from '@libs/OnboardingUtils';
 import {
     getFilteredReportActionsForReportView,
     getFirstVisibleReportActionID,
+    getLatestConciergeFeedbackActionID,
     getOneTransactionThreadReportID,
     hasNextActionMadeBySameActor,
     isCurrentActionUnread,
@@ -241,6 +242,13 @@ function MoneyRequestReportActionsList({onLayout}: MoneyRequestReportListProps) 
     const reportActionIDs = useMemo(() => {
         return reportActions?.map((action) => action.reportActionID) ?? [];
     }, [reportActions]);
+
+    // `visibleReportActions` is oldest-first here, while the helper scans newest-first.
+    // Suppressed while a Concierge answer is still streaming so the prompt never lands on a half-written reply.
+    const latestConciergeFeedbackActionID = useMemo(
+        () => (isDraftPendingCompletion ? undefined : getLatestConciergeFeedbackActionID(visibleReportActions.slice().reverse(), new Set(reportActionIDs))),
+        [isDraftPendingCompletion, visibleReportActions, reportActionIDs],
+    );
 
     const {loadOlderChats, loadNewerChats} = useLoadReportActions({
         reportID,
@@ -657,6 +665,7 @@ function MoneyRequestReportActionsList({onLayout}: MoneyRequestReportListProps) 
                         linkedReportActionID={linkedReportActionID}
                         isHarvestCreatedExpenseReport={shouldShowHarvestCreatedAction}
                         shouldDisableContextMenuForConciergeDraft={shouldDisableContextMenuForConciergeDraft}
+                        isLatestConciergeFeedbackAction={!!latestConciergeFeedbackActionID && latestConciergeFeedbackActionID === reportAction.reportActionID}
                     />
                 </ReportActionIndexContext.Provider>
             );
@@ -674,10 +683,14 @@ function MoneyRequestReportActionsList({onLayout}: MoneyRequestReportListProps) 
             shouldShowHarvestCreatedAction,
             draftReportActionID,
             isDraftPendingCompletion,
+            latestConciergeFeedbackActionID,
         ],
     );
 
-    const reportActionsExtraData = useMemo(() => [draftReportActionID, isDraftPendingCompletion], [draftReportActionID, isDraftPendingCompletion]);
+    const reportActionsExtraData = useMemo(
+        () => [draftReportActionID, isDraftPendingCompletion, latestConciergeFeedbackActionID],
+        [draftReportActionID, isDraftPendingCompletion, latestConciergeFeedbackActionID],
+    );
 
     const scrollToLatestMessages = useCallback(() => {
         setIsFloatingMessageCounterVisible(false);

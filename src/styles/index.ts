@@ -4328,6 +4328,19 @@ const staticStyles = (theme: ThemeColors) =>
             alignSelf: 'flex-start',
         },
 
+        conciergeFeedbackThumb: {
+            width: variables.componentSizeSmall,
+            height: variables.componentSizeSmall,
+            borderRadius: variables.buttonBorderRadius,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.transparent,
+        },
+
+        conciergeFeedbackThumbHovered: {
+            backgroundColor: theme.hoverComponentBG,
+        },
+
         emojiReactionListHeader: {
             marginTop: 8,
             paddingBottom: 20,

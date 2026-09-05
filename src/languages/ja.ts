@@ -525,6 +525,12 @@ const translations: TranslationDeepObject<typeof en> = {
             prompt: 'Conciergeから返信があったときに通知を受け取りますか？',
             cta: '通知',
         },
+        feedback: {
+            prompt: 'この回答は役に立ちましたか？',
+            helpful: '役に立った',
+            notHelpful: '役に立たなかった',
+            thanks: 'フィードバックありがとうございます！',
+        },
     },
     supportalNoAccess: {
         title: 'ちょっと待ってください',

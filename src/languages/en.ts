@@ -562,6 +562,12 @@ const translations = {
             prompt: 'Want to be notified when Concierge responds?',
             cta: 'Notify',
         },
+        feedback: {
+            prompt: 'Was that response useful?',
+            helpful: 'Helpful',
+            notHelpful: 'Not helpful',
+            thanks: 'Thanks for the feedback!',
+        },
     },
     supportalNoAccess: {
         title: 'Not so fast',

@@ -335,6 +335,9 @@ describe('ReportActionsList (body)', () => {
     });
 
     describe('Concierge Draft Context Menu', () => {
+        /** Position of `isDraftPendingCompletion` in the list's `extraData`, which is ordered, not keyed. */
+        const DRAFT_PENDING_EXTRA_DATA_INDEX = 4;
+
         const conciergeDraftReportAction: OnyxTypes.ReportAction = {
             reportID: mockReport.reportID,
             reportActionID: 'concierge-draft',
@@ -364,7 +367,7 @@ describe('ReportActionsList (body)', () => {
 
             expect(getCapturedVisibleActions()?.some((action) => action.reportActionID === conciergeDraftReportAction.reportActionID)).toBe(true);
             expect(getRenderedReportActionsListItemProps(conciergeDraftReportAction).shouldDisableContextMenuForConciergeDraft).toBe(true);
-            expect((getCapturedListProps()?.extraData as unknown[]).at(-1)).toBe(true);
+            expect((getCapturedListProps()?.extraData as unknown[]).at(DRAFT_PENDING_EXTRA_DATA_INDEX)).toBe(true);
         });
 
         it('enables the context menu after the Concierge draft finishes streaming', () => {
@@ -378,7 +381,7 @@ describe('ReportActionsList (body)', () => {
 
             expect(getCapturedVisibleActions()?.some((action) => action.reportActionID === conciergeDraftReportAction.reportActionID)).toBe(true);
             expect(getRenderedReportActionsListItemProps(conciergeDraftReportAction).shouldDisableContextMenuForConciergeDraft).toBe(false);
-            expect((getCapturedListProps()?.extraData as unknown[]).at(-1)).toBe(false);
+            expect((getCapturedListProps()?.extraData as unknown[]).at(DRAFT_PENDING_EXTRA_DATA_INDEX)).toBe(false);
         });
     });
 

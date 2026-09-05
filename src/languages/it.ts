@@ -523,6 +523,12 @@ const translations: TranslationDeepObject<typeof en> = {
         collapseReasoning: 'Comprimi ragionamento',
         expandReasoning: 'Espandi ragionamento',
         enableNotifications: {prompt: 'Vuoi ricevere una notifica quando Concierge risponde?', cta: 'Notifica'},
+        feedback: {
+            prompt: 'Questa risposta è stata utile?',
+            helpful: 'Utile',
+            notHelpful: 'Non utile',
+            thanks: 'Grazie per il feedback!',
+        },
     },
     supportalNoAccess: {
         title: 'Non così in fretta',

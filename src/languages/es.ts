@@ -513,6 +513,12 @@ const translations: TranslationDeepObject<typeof en> = {
             prompt: '¿Quieres que te avisemos cuando Concierge responda?',
             cta: 'Notificar',
         },
+        feedback: {
+            prompt: '¿Te resultó útil esa respuesta?',
+            helpful: 'Útil',
+            notHelpful: 'No útil',
+            thanks: '¡Gracias por tus comentarios!',
+        },
     },
     supportalNoAccess: {
         title: 'No tan rápido',

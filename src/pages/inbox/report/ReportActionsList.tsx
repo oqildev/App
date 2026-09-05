@@ -21,6 +21,7 @@ import type {PlatformStackRouteProp} from '@libs/Navigation/PlatformStackNavigat
 import TransitionTracker from '@libs/Navigation/TransitionTracker';
 import {
     getFirstVisibleReportActionID,
+    getLatestConciergeFeedbackActionID,
     getReportActionHtml,
     getReportActionMessage,
     isConsecutiveActionMadeByPreviousActor,
@@ -127,6 +128,7 @@ function ReportActionsListContent({reportID, conciergeChat, onLayout}: ReportAct
         isConciergeHiddenHistory,
         showFullHistory,
         hasPreviousMessages,
+        allReportActionIDs,
     } = useReportActionsListState();
 
     const {setTreatAsNoPaginationAnchor, loadOlderChats, loadNewerChats, handleShowPreviousMessages} = useReportActionsListActions();
@@ -325,6 +327,12 @@ function ReportActionsListContent({reportID, conciergeChat, onLayout}: ReportAct
 
     const firstVisibleReportActionID = getFirstVisibleReportActionID(sortedReportActions, isOffline);
 
+    // While a Concierge answer is still being revealed the rendered list holds a synthetic draft, so asking
+    // "was that response useful?" would either point at half a sentence or at the answer above it. Waiting
+    // for the reveal to finish is not enough on its own: the draft's pacing status flips independently of
+    // the server write, so the eligibility check below also requires the action to exist in Onyx.
+    const latestConciergeFeedbackActionID = isSyntheticDraftVisible ? undefined : getLatestConciergeFeedbackActionID(renderedVisibleReportActions, new Set(allReportActionIDs));
+
     useFollowActionBadgeTarget({
         isProduction,
         reportID,
@@ -379,6 +387,7 @@ function ReportActionsListContent({reportID, conciergeChat, onLayout}: ReportAct
                     shouldDisplayNewMarker={reportAction.reportActionID === unreadMarkerReportActionID}
                     shouldDisplayReplyDivider={renderedVisibleReportActions.length > 1}
                     isFirstVisibleReportAction={firstVisibleReportActionID === reportAction.reportActionID}
+                    isLatestConciergeFeedbackAction={!!latestConciergeFeedbackActionID && latestConciergeFeedbackActionID === reportAction.reportActionID}
                     shouldUseThreadDividerLine={shouldUseThreadDividerLine}
                     isHarvestCreatedExpenseReport={isHarvestCreatedExpenseReportAction}
                     shouldDisableContextMenuForConciergeDraft={shouldDisableContextMenuForConciergeDraft}
@@ -404,6 +413,7 @@ function ReportActionsListContent({reportID, conciergeChat, onLayout}: ReportAct
         draftReportActionID,
         draftMessageHTML,
         isDraftPendingCompletion,
+        latestConciergeFeedbackActionID,
     ];
 
     const listHeaderComponent = (
