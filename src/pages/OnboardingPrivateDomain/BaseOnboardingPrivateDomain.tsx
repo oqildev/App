@@ -1,6 +1,6 @@
-import OnboardingHeader from '@components/OnboardingHeader';
 import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 import ValidateCodeForm from '@components/ValidateCodeActionModal/ValidateCodeForm';
 
@@ -129,7 +129,7 @@ function BaseOnboardingPrivateDomain({shouldUseNativeStyles, route}: BaseOnboard
             testID="BaseOnboardingPrivateDomain"
             style={[styles.defaultModalContainer, shouldUseNativeStyles && styles.pt8]}
         >
-            <OnboardingHeader
+            <StickyCaretBackHeader
                 shouldShowBackButton
                 onBackButtonPress={handleBackButtonPress}
             />

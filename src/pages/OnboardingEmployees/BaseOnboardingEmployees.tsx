@@ -1,10 +1,10 @@
 import Button from '@components/Button';
 import FormHelpMessage from '@components/FormHelpMessage';
-import OnboardingHeader from '@components/OnboardingHeader';
 import ScreenWrapper from '@components/ScreenWrapper';
 import SelectionList from '@components/SelectionList';
 import SingleSelectListItem from '@components/SelectionList/ListItem/SingleSelectListItem';
 import type {ListItem} from '@components/SelectionList/types';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 
 import useLocalize from '@hooks/useLocalize';
@@ -146,7 +146,7 @@ function BaseOnboardingEmployees({shouldUseNativeStyles, route}: BaseOnboardingE
             testID="BaseOnboardingEmployees"
             style={[styles.defaultModalContainer, shouldUseNativeStyles && styles.pt8]}
         >
-            <OnboardingHeader
+            <StickyCaretBackHeader
                 shouldShowBackButton={!isEmployeesFirstStep}
                 onBackButtonPress={handleBackButtonPress}
             />

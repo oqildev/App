@@ -1,8 +1,8 @@
 import FormHelpMessage from '@components/FormHelpMessage';
 import type {MenuItemProps} from '@components/MenuItem';
 import MenuItemList from '@components/MenuItemList';
-import OnboardingHeader from '@components/OnboardingHeader';
 import ScreenWrapper from '@components/ScreenWrapper';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 
 import useAutoCreateSubmitWorkspace from '@hooks/useAutoCreateSubmitWorkspace';
@@ -184,7 +184,7 @@ function BaseOnboardingPurpose({shouldUseNativeStyles, shouldEnableMaxHeight, ro
             shouldEnableMaxHeight={shouldEnableMaxHeight}
         >
             <View style={onboardingIsMediumOrLargerScreenWidth && styles.mh3}>
-                <OnboardingHeader shouldShowBackButton={false} />
+                <StickyCaretBackHeader shouldShowBackButton={false} />
             </View>
             <ScrollView style={[styles.flex1, styles.flexGrow1, onboardingIsMediumOrLargerScreenWidth && styles.mt5, paddingHorizontal]}>
                 <View style={styles.flex1}>

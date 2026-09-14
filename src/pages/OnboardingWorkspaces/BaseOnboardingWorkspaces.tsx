@@ -1,10 +1,10 @@
 import Button from '@components/Button';
 import ButtonDisabledWhenOffline from '@components/Button/composed/ButtonDisabledWhenOffline';
 import LinkButton from '@components/Button/composed/LinkButton';
-import OnboardingHeader from '@components/OnboardingHeader';
 import ScreenWrapper from '@components/ScreenWrapper';
 import SelectionList from '@components/SelectionList';
 import BareUserListItem from '@components/SelectionList/ListItem/BareUserListItem';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 
 import useAutoCreateSubmitWorkspace from '@hooks/useAutoCreateSubmitWorkspace';
@@ -174,7 +174,7 @@ function BaseOnboardingWorkspaces({route, shouldUseNativeStyles}: BaseOnboarding
             style={[styles.defaultModalContainer, shouldUseNativeStyles && styles.pt8]}
             shouldShowOfflineIndicator={isSmallScreenWidth}
         >
-            <OnboardingHeader
+            <StickyCaretBackHeader
                 shouldShowBackButton={!shouldHideBackButton}
                 onBackButtonPress={() => Navigation.goBack()}
             />

@@ -5,9 +5,9 @@ import InputWrapper from '@components/Form/InputWrapper';
 import type {FormOnyxValues} from '@components/Form/types';
 import Icon from '@components/Icon';
 import OfflineWithFeedback from '@components/OfflineWithFeedback';
-import OnboardingHeader from '@components/OnboardingHeader';
 import OnboardingMergingAccountBlockedView from '@components/OnboardingMergingAccountBlockedView';
 import ScreenWrapper from '@components/ScreenWrapper';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 import TextInput from '@components/TextInput';
 
@@ -205,7 +205,7 @@ function BaseOnboardingWorkEmail({shouldUseNativeStyles}: BaseOnboardingWorkEmai
             testID="BaseOnboardingWorkEmail"
             style={[styles.defaultModalContainer, shouldUseNativeStyles && styles.pt8]}
         >
-            <OnboardingHeader shouldShowBackButton={false} />
+            <StickyCaretBackHeader shouldShowBackButton={false} />
             {onboardingValues?.isMergingAccountBlocked ? (
                 <View style={[styles.flex1, onboardingIsMediumOrLargerScreenWidth && styles.mt5, onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}>
                     <OnboardingMergingAccountBlockedView

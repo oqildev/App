@@ -4,12 +4,12 @@ import CollapsibleHeaderOnKeyboard from '@components/CollapsibleHeaderOnKeyboard
 import FixedFooter from '@components/FixedFooter';
 import FormHelpMessage from '@components/FormHelpMessage';
 import Icon from '@components/Icon';
-import OnboardingHeader from '@components/OnboardingHeader';
 import {PressableWithoutFeedback} from '@components/Pressable';
 import RadioButtonWithLabel from '@components/RadioButtonWithLabel';
 import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
 import type {ListItem} from '@components/SelectionList/types';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 import TextInput from '@components/TextInput';
 import type {BaseTextInputRef} from '@components/TextInput/BaseTextInput/types';
@@ -293,7 +293,7 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
             shouldAvoidScrollOnVirtualViewport={!isMobileSafari()}
         >
             <CollapsibleHeaderOnKeyboard>
-                <OnboardingHeader onBackButtonPress={() => Navigation.goBack(ROUTES.ONBOARDING_INTERESTED_FEATURES.getRoute())} />
+                <StickyCaretBackHeader onBackButtonPress={() => Navigation.goBack(ROUTES.ONBOARDING_INTERESTED_FEATURES.getRoute())} />
                 <View style={[onboardingIsMediumOrLargerScreenWidth && styles.mt5, onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}>
                     <Text
                         style={[styles.textHeadlineH1, styles.mb5]}

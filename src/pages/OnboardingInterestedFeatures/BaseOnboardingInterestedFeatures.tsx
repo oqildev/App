@@ -2,11 +2,11 @@ import Button from '@components/Button';
 import Checkbox from '@components/Checkbox';
 import FixedFooter from '@components/FixedFooter';
 import Icon from '@components/Icon';
-import OnboardingHeader from '@components/OnboardingHeader';
 import {PressableWithoutFeedback} from '@components/Pressable';
 import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
 import Section from '@components/Section';
+import StickyCaretBackHeader from '@components/StickyCaretBackHeader';
 import Text from '@components/Text';
 
 import useCompleteOnboarding from '@hooks/useCompleteOnboarding';
@@ -241,7 +241,7 @@ function BaseOnboardingInterestedFeatures({shouldUseNativeStyles}: BaseOnboardin
             style={[styles.defaultModalContainer, shouldUseNativeStyles && styles.pt8]}
             shouldEnableMaxHeight
         >
-            <OnboardingHeader onBackButtonPress={() => Navigation.goBack(ROUTES.ONBOARDING_EMPLOYEES.getRoute())} />
+            <StickyCaretBackHeader onBackButtonPress={() => Navigation.goBack(ROUTES.ONBOARDING_EMPLOYEES.getRoute())} />
             <View style={[onboardingIsMediumOrLargerScreenWidth && styles.mt5, onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}>
                 <Text
                     style={[styles.textHeadlineH1, styles.mb5]}

@@ -11,9 +11,11 @@ import type {LayoutChangeEvent} from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
 import React, {useEffect, useRef} from 'react';
 import {useReanimatedKeyboardAnimation} from 'react-native-keyboard-controller';
-import Reanimated, {Easing, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import Reanimated, {Easing, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming} from 'react-native-reanimated';
 
 import type {CollapsibleHeaderOnKeyboardProps} from './types';
+
+import CollapsibleHeaderOnKeyboardContext from './CollapsibleHeaderOnKeyboardContext';
 
 const COLLAPSE_DURATION = 100;
 const RESTORE_DURATION = 300;
@@ -188,28 +190,29 @@ function CollapsibleHeaderOnKeyboard({children, collapsibleHeaderOffset = 0, alw
         return {height: animatedHeight.get(), overflow: 'hidden'};
     });
 
-    // Inner wrapper slides the content upward during landscape keyboard collapse only.
-    const innerStyle = useAnimatedStyle(() => {
-        if (animatedHeight.get() >= naturalHeight.get()) {
-            return {transform: [{translateY: 0}]};
+    // How far the content slides upward. It only moves during landscape keyboard collapse.
+    const collapseTranslateY = useDerivedValue(() => {
+        if (animatedHeight.get() >= naturalHeight.get() || !isInLandscapeModeSV.get()) {
+            return 0;
         }
 
-        if (!isInLandscapeModeSV.get()) {
-            return {transform: [{translateY: 0}]};
-        }
-
-        return {transform: [{translateY: animatedHeight.get() - naturalHeight.get()}]};
+        return animatedHeight.get() - naturalHeight.get();
     });
 
+    const innerStyle = useAnimatedStyle(() => ({transform: [{translateY: collapseTranslateY.get()}]}));
+
     return (
-        <Reanimated.View style={outerStyle}>
-            <Reanimated.View
-                onLayout={onLayout}
-                style={innerStyle}
-            >
-                {children}
+        // Content drawn outside this view on behalf of the header (e.g. a sticky back caret) reads the offset to collapse along with it
+        <CollapsibleHeaderOnKeyboardContext.Provider value={collapseTranslateY}>
+            <Reanimated.View style={outerStyle}>
+                <Reanimated.View
+                    onLayout={onLayout}
+                    style={innerStyle}
+                >
+                    {children}
+                </Reanimated.View>
             </Reanimated.View>
-        </Reanimated.View>
+        </CollapsibleHeaderOnKeyboardContext.Provider>
     );
 }
 
