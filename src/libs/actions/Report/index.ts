@@ -387,6 +387,10 @@ type OpenReportActionParams = {
 
     /** The Concierge chat report used to build the guided setup onboarding data */
     conciergeChat: OnyxEntry<Report>;
+
+    /** Guided setup data the caller already built with getGuidedSetupDataForOpenReport. Building it again would mint
+     * different task report IDs, so pass it when the caller needs to reference the tasks this request creates. */
+    guidedSetup?: GuidedSetupDataForOpenReport;
 };
 
 type PregeneratedResponseParams = {
@@ -1678,6 +1682,7 @@ function openReport(params: OpenReportActionParams) {
         hasReportActions,
         shouldMarkAsRead = true,
         conciergeChat,
+        guidedSetup: prebuiltGuidedSetup,
     } = params;
     if (!reportID) {
         return;
@@ -1910,7 +1915,7 @@ function openReport(params: OpenReportActionParams) {
         });
     }
 
-    const guidedSetup = getGuidedSetupDataForOpenReport(introSelected, currentUserAccountID, conciergeChat, isSelfTourViewed, hasCompletedGuidedSetupFlow);
+    const guidedSetup = prebuiltGuidedSetup ?? getGuidedSetupDataForOpenReport(introSelected, currentUserAccountID, conciergeChat, isSelfTourViewed, hasCompletedGuidedSetupFlow);
     if (guidedSetup) {
         optimisticData.push(...guidedSetup.optimisticData);
         successData.push(...guidedSetup.successData);
@@ -8837,7 +8842,7 @@ function saveConciergePromptDraft(draft: string | null) {
     Onyx.set(ONYXKEYS.CONCIERGE_PROMPT_DRAFT, draft);
 }
 
-export type {Video, GuidedSetupData, GuidedSetupTask, TaskForParameters, IntroSelected, OpenReportActionParams};
+export type {Video, GuidedSetupData, GuidedSetupDataForOpenReport, GuidedSetupTask, TaskForParameters, IntroSelected, OpenReportActionParams};
 
 export {
     addAttachmentWithComment,

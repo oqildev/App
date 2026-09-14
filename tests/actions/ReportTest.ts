@@ -9376,6 +9376,33 @@ describe('actions/Report', () => {
             expect(result?.optimisticData.some((update) => update.key.includes(conciergeChat.reportID))).toBe(true);
         });
 
+        it('openReport sends the guided setup the caller already built instead of building a new one', async () => {
+            await setupUserWithConciergeChat();
+            await waitForBatchedUpdates();
+
+            const introSelected: OnyxTypes.IntroSelected = {
+                choice: CONST.ONBOARDING_CHOICES.ADMIN,
+                inviteType: CONST.ONBOARDING_INVITE_TYPES.WORKSPACE,
+                isInviteOnboardingComplete: false,
+            };
+            const guidedSetup = Report.getGuidedSetupDataForOpenReport(introSelected, TEST_USER_ACCOUNT_ID, CONCIERGE_CHAT, undefined, undefined);
+            expect(guidedSetup).toBeDefined();
+
+            Report.openReport({
+                reportID: CONCIERGE_REPORT_ID,
+                introSelected,
+                betas: undefined,
+                conciergeChat: CONCIERGE_CHAT,
+                hasReportActions: false,
+                currentUserAccountID: TEST_USER_ACCOUNT_ID,
+                guidedSetup,
+            });
+            await waitForBatchedUpdates();
+
+            // A rebuilt guided setup would carry freshly generated task and report action IDs, so only the caller's copy matches.
+            TestHelper.expectAPICommandToHaveBeenCalledWith(WRITE_COMMANDS.OPEN_REPORT, 0, {reportID: CONCIERGE_REPORT_ID, guidedSetupData: guidedSetup?.guidedSetupData});
+        });
+
         it('should return undefined for completed regular onboarding when invite onboarding is not pending', async () => {
             await setupUserWithConciergeChat();
             await Onyx.merge(ONYXKEYS.NVP_ONBOARDING, {hasCompletedGuidedSetupFlow: true});

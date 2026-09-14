@@ -28,6 +28,7 @@ import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES, {DYNAMIC_ROUTES} from '@src/ROUTES';
 import type {Route} from '@src/ROUTES';
 import type * as OnyxTypes from '@src/types/onyx';
+import type {IntroSelectedTask} from '@src/types/onyx/IntroSelected';
 import type {Icon} from '@src/types/onyx/OnyxCommon';
 import type PersonalDetails from '@src/types/onyx/PersonalDetails';
 import type {CurrentUserPersonalDetails} from '@src/types/onyx/PersonalDetails';
@@ -41,6 +42,8 @@ import type {NullishDeep, OnyxCollection, OnyxEntry, OnyxUpdate} from 'react-nat
 
 import {Str} from 'expensify-common';
 import Onyx from 'react-native-onyx';
+
+import type {GuidedSetupDataForOpenReport} from './Report';
 
 import {getMostRecentReportID, navigateToConciergeChatAndDeleteReport, notifyNewAction, optimisticReportLastData} from './Report';
 import {setSelfTourViewed} from './Welcome';
@@ -1666,6 +1669,29 @@ function getReviewWorkspaceSettingsTaskCompletionData(taskInformation: Onboardin
     );
 }
 
+type GuidedSetupOptimisticUpdate = GuidedSetupDataForOpenReport['optimisticData'][number];
+
+type GuidedSetupReportSetUpdate = Extract<GuidedSetupOptimisticUpdate, {onyxMethod: typeof Onyx.METHOD.SET; key: `${typeof ONYXKEYS.COLLECTION.REPORT}${string}`}>;
+
+function isGuidedSetupReportSetUpdate(update: GuidedSetupOptimisticUpdate, reportID: string): update is GuidedSetupReportSetUpdate {
+    return update.onyxMethod === Onyx.METHOD.SET && update.key === `${ONYXKEYS.COLLECTION.REPORT}${reportID}`;
+}
+
+/**
+ * Resolve an onboarding task's report from guided setup data that has not reached Onyx yet, the same way
+ * `useOnboardingTaskInformation` resolves it from Onyx: through the task's reportID on NVP_INTRO_SELECTED.
+ */
+function getOnboardingTaskReportFromGuidedSetup(guidedSetup: GuidedSetupDataForOpenReport | undefined, taskName: IntroSelectedTask): OnyxEntry<OnyxTypes.Report> {
+    const optimisticData = guidedSetup?.optimisticData ?? [];
+    const taskReportID = optimisticData
+        .map((update) => (update.key === ONYXKEYS.NVP_INTRO_SELECTED && update.onyxMethod === Onyx.METHOD.MERGE ? update.value?.[taskName] : undefined))
+        .find((reportID): reportID is string => !!reportID);
+    if (!taskReportID) {
+        return undefined;
+    }
+    return optimisticData.find((update) => isGuidedSetupReportSetUpdate(update, taskReportID))?.value ?? undefined;
+}
+
 /**
  * Build the Onyx data that completes an onboarding task.
  *
@@ -1740,6 +1766,7 @@ export {
     buildTaskData,
     completeTask,
     getReviewWorkspaceSettingsTaskCompletionData,
+    getOnboardingTaskReportFromGuidedSetup,
     clearOutTaskInfoAndNavigate,
     startOutCreateTaskQuickAction,
     getAssignee,
