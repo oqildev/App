@@ -9,7 +9,7 @@ import type {Address} from '@src/types/onyx/PrivatePersonalDetails';
 import type {OnyxData} from '@src/types/onyx/Request';
 import {isEmptyObject} from '@src/types/utils/EmptyObject';
 
-import type {OnyxEntry, OnyxMergeInput, OnyxUpdate} from 'react-native-onyx';
+import type {OnyxEntry, OnyxMergeInput, OnyxMultiSetInput, OnyxUpdate} from 'react-native-onyx';
 import type {SetNonNullable} from 'type-fest';
 
 import {Str} from 'expensify-common';
@@ -17,7 +17,7 @@ import Onyx from 'react-native-onyx';
 
 import {getCountryCode} from './CountryUtils';
 import {areEmailsFromSamePrivateDomain} from './LoginUtils';
-import {getPersonalDetailByLogin} from './PersonalDetailsStore';
+import {getPersonalDetail, getPersonalDetailByLogin} from './PersonalDetailsStore';
 import {addSMSDomainIfPhoneNumber, parsePhoneNumber} from './PhoneNumber';
 import {getDefaultAvatarURL} from './UserAvatarUtils';
 import {generateAccountID} from './UserUtils';
@@ -260,6 +260,19 @@ function buildPersonalDetailsUpdate(personalDetails: PersonalDetailsUpdate): Ony
 
 // The Onyx update produced by buildPersonalDetailsUpdate. Use it instead of naming the key in an OnyxUpdate generic.
 type PersonalDetailsOnyxUpdate = ReturnType<typeof buildPersonalDetailsUpdate>;
+
+/**
+ * Seed that carries one account's personal details through an Onyx reset. Every other account is dropped and comes back
+ * with the next OpenApp, while identity checks for this account stay resolved in the meantime.
+ */
+function buildPersonalDetailsResetSeed(accountID: number | undefined): OnyxMultiSetInput {
+    const personalDetail = getPersonalDetail(accountID);
+    if (!accountID || !personalDetail) {
+        return {};
+    }
+
+    return {[ONYXKEYS.PERSONAL_DETAILS_LIST]: {[accountID]: personalDetail}};
+}
 
 /**
  * Given a list of logins and accountIDs, return Onyx data for users with no existing personal details stored. These users might be brand new or unknown.
@@ -550,4 +563,5 @@ export {
     areTravelPersonalDetailsMissing,
     temporaryGetDisplayNameOrDefault,
     buildPersonalDetailsUpdate,
+    buildPersonalDetailsResetSeed,
 };

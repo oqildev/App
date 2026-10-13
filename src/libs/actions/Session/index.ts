@@ -37,7 +37,7 @@ import * as NetworkStore from '@libs/Network/NetworkStore';
 import {getCurrentUserEmail} from '@libs/Network/NetworkStore';
 import * as SequentialQueue from '@libs/Network/SequentialQueue';
 import openExternalLink from '@libs/openExternalLink';
-import {buildPersonalDetailsUpdate} from '@libs/PersonalDetailsUtils';
+import {buildPersonalDetailsResetSeed, buildPersonalDetailsUpdate} from '@libs/PersonalDetailsUtils';
 import type {PersonalDetailsOnyxUpdate} from '@libs/PersonalDetailsUtils';
 import clearPrefetchOnAppStart from '@libs/Prefetch/clearPrefetchOnAppStart';
 import Pusher from '@libs/Pusher';
@@ -1540,10 +1540,25 @@ function validateTwoFactorAuth(twoFactorAuthCode: string, shouldClearData: boole
             return;
         }
 
-        // Clear onyx data if the user has just signed in and is forced to add 2FA
+        // Clear onyx data if the user has just signed in and is forced to add 2FA.
+        // The 2FA RHP stays open through this reset and the openApp() that follows, so the reset has to carry what the open screens read:
+        // - NVP_TRY_NEW_DOT, so Got it on the success page can still hand a Classic user back to OldDot.
+        // - HAS_LOADED_APP and the current user's personal details, so useIsAgentAccount stays resolved. Without them
+        //   withAgentAccessDenied renders null for every 2FA screen until openApp() returns and the verify page remounts empty.
         if (shouldClearData) {
-            const keysToPreserveWithPrivatePersonalDetails = [...KEYS_TO_PRESERVE, ONYXKEYS.PRIVATE_PERSONAL_DETAILS];
-            clearOnyxAndSeedFullReconnect(keysToPreserveWithPrivatePersonalDetails).then(() => updateAuthTokenAndOpenApp(response.authToken, response.encryptedAuthToken));
+            const keysToPreserveForLoginRequired2FA = [...KEYS_TO_PRESERVE, ONYXKEYS.PRIVATE_PERSONAL_DETAILS, ONYXKEYS.NVP_TRY_NEW_DOT, ONYXKEYS.HAS_LOADED_APP];
+
+            // A response with the post-validate auth token means 2FA is enabled. Write that here instead of relying on successData:
+            // when the response is deferred behind missing Onyx updates, the reset drops it, the secret key stays in ACCOUNT
+            // and the verify page can never advance to success.
+            Onyx.merge(ONYXKEYS.ACCOUNT, {
+                requiresTwoFactorAuth: true,
+                needsTwoFactorAuthSetup: false,
+                twoFactorAuthSecretKey: null,
+                isLoading: false,
+            })
+                .then(() => clearOnyxAndSeedFullReconnect(keysToPreserveForLoginRequired2FA, buildPersonalDetailsResetSeed(deprecatedSession.accountID)))
+                .then(() => updateAuthTokenAndOpenApp(response.authToken, response.encryptedAuthToken));
             return;
         }
 
